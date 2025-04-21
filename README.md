@@ -2,7 +2,7 @@
 
 ### Build from Docker
 ```
-docker built -t hcp-terraform-mcp-server .
+docker build -t hcp-terraform-mcp-server .
 ```
 
 If you plan to push the Docker image to a Docker registry, update the image reference accordingly. The current configuration is designed for local use.
