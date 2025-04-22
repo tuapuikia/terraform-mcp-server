@@ -1,19 +1,15 @@
-package hashicorp
+package tfenterprise
 
 import (
-	"context"
-
 	"github.com/github/github-mcp-server/pkg/toolsets"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/hashicorp/go-tfe"
 	"github.com/mark3labs/mcp-go/server"
 )
 
-type GetClientFn func(context.Context) (*tfe.Client, error)
-
 var DefaultTools = []string{"all"}
 
-func InitToolsets(passedToolsets []string, readOnly bool, getClient GetClientFn, t translations.TranslationHelperFunc) (*toolsets.ToolsetGroup, error) {
+func InitToolsets(passedToolsets []string, readOnly bool, tfeClient *tfe.Client, t translations.TranslationHelperFunc) (*toolsets.ToolsetGroup, error) {
 	// Create a new toolset group
 	tsg := toolsets.NewToolsetGroup(readOnly)
 
@@ -21,7 +17,7 @@ func InitToolsets(passedToolsets []string, readOnly bool, getClient GetClientFn,
 	// Create toolsets
 	workspaces := toolsets.NewToolset("workspaces", "HCP Terraform related tools").
 		AddReadTools(
-			toolsets.NewServerTool(ListWorkspaces(getClient, t)),
+			toolsets.NewServerTool(ListWorkspaces(tfeClient, t)),
 		// toolsets.NewServerTool(GetFileContents(getClient, t)),
 		// toolsets.NewServerTool(ListCommits(getClient, t)),
 		// toolsets.NewServerTool(SearchCode(getClient, t)),
@@ -37,7 +33,7 @@ func InitToolsets(passedToolsets []string, readOnly bool, getClient GetClientFn,
 		)
 	organizations := toolsets.NewToolset("organizations", "HCP Terraform Organizations related tools").
 		AddReadTools(
-			toolsets.NewServerTool(ListOrganizations(getClient, t)),
+			toolsets.NewServerTool(ListOrganizations(tfeClient, t)),
 		// toolsets.NewServerTool(SearchIssues(getClient, t)),
 		// toolsets.NewServerTool(ListIssues(getClient, t)),
 		// toolsets.NewServerTool(GetIssueComments(getClient, t)),
@@ -53,7 +49,7 @@ func InitToolsets(passedToolsets []string, readOnly bool, getClient GetClientFn,
 		)
 	projects := toolsets.NewToolset("projects", "HCP Terraform Projects related tools").
 		AddReadTools(
-			toolsets.NewServerTool(ListProjects(getClient, t)),
+			toolsets.NewServerTool(ListProjects(tfeClient, t)),
 		// toolsets.NewServerTool(ListPullRequests(getClient, t)),
 		// toolsets.NewServerTool(GetPullRequestFiles(getClient, t)),
 		// toolsets.NewServerTool(GetPullRequestStatus(getClient, t)),
@@ -87,11 +83,11 @@ func InitToolsets(passedToolsets []string, readOnly bool, getClient GetClientFn,
 	return tsg, nil
 }
 
-func InitContextToolset(getClient GetClientFn, t translations.TranslationHelperFunc) *toolsets.Toolset {
+func InitContextToolset(tfeClient *tfe.Client, t translations.TranslationHelperFunc) *toolsets.Toolset {
 	// Create a new context toolset
 	contextTools := toolsets.NewToolset("context", "Tools that provide context about the current user and HCP Terraform context you are operating in").
 		AddReadTools(
-		// toolsets.NewServerTool(GetMe(getClient, t)),
+		// toolsets.NewServerTool(GetMe(tfeClient, t)),
 		)
 	contextTools.Enabled = true
 	return contextTools

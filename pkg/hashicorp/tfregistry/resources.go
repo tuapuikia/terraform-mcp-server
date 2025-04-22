@@ -1,4 +1,4 @@
-package hashicorp
+package tfregistry
 
 import (
 	"github.com/github/github-mcp-server/pkg/translations"
