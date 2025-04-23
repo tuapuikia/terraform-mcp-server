@@ -19,6 +19,7 @@ import (
 
 	// gogithub "github.com/google/go-github/v69/github" // Removed GitHub client import
 
+	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -150,6 +151,42 @@ func runStdioServer(cfg runConfig) error {
 	} else {
 		cfg.logger.Warnf("HCP_TFE_TOKEN not set, defaulting to non-authenticated client")
 	}
+
+	listProvidersResource := mcp.NewResource(
+		"registry://providers/",
+		"listing of providers from the Terraform registry",
+		mcp.WithResourceDescription("listing of providers from the Terraform registry"),
+		mcp.WithMIMEType("text/plain"),
+	)
+
+	hcServer.AddResource(listProvidersResource, func(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+		// List of common Terraform providers
+		commonProviders := []string{
+			"aws",
+			"google",
+			"azurerm",
+			"kubernetes",
+			"github",
+			"docker",
+			"null",
+			"random",
+			"time",
+			"local",
+			"tls",
+			"vault",
+		}
+
+		resources := make([]mcp.ResourceContents, 0, len(commonProviders))
+		for _, provider := range commonProviders {
+			resources = append(resources, mcp.TextResourceContents{
+				URI:      fmt.Sprintf("registry://providers/hashicorp/%s", provider),
+				MIMEType: "text/plain", // Assuming plain text for the provider name
+				Text:     provider,
+			})
+		}
+
+		return resources, nil
+	})
 
 	// Initialize default service discovery and http client for registry
 	// discoClient := disco.New() // Restore disco client initialization
