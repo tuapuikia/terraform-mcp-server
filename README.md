@@ -42,7 +42,7 @@ If you plan to push the Docker image to a Docker registry, update the image refe
       }
     ],
     "servers": {
-      "github": {
+      "hcp-terraform": {
         "command": "docker",
         "args": [
           "run",
@@ -86,7 +86,7 @@ If you don't have Docker, you can use `go build` to build the binary in the
 {
   "mcp": {
     "servers": {
-      "github": {
+      "hcp-terraform": {
         "command": "/path/to/hcp-terraform-mcp-server",
         "args": ["stdio"],
         "env": {
