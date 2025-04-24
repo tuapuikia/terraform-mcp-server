@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"net/http"
 
 	// TODO: Refactor dependent packages to use TFE client instead of GitHub client
 
@@ -19,7 +20,6 @@ import (
 
 	// gogithub "github.com/google/go-github/v69/github" // Removed GitHub client import
 
-	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -152,66 +152,17 @@ func runStdioServer(cfg runConfig) error {
 		cfg.logger.Warnf("HCP_TFE_TOKEN not set, defaulting to non-authenticated client")
 	}
 
-	listProvidersResource := mcp.NewResource(
-		"registry://providers/",
-		"listing of providers from the Terraform registry",
-		mcp.WithResourceDescription("listing of providers from the Terraform registry"),
-		mcp.WithMIMEType("text/plain"),
-	)
+	registryClient := &http.Client{}
+	toolsets, err := tfregistry.InitToolsets(enabled, cfg.readOnly, registryClient, t)
+	if err != nil {
+		return fmt.Errorf("failed to initialize registry toolset: %v", err)
+	}
+	dynamicToolSet := tfregistry.InitDynamicToolset(hcServer, toolsets, t)
 
-	hcServer.AddResource(listProvidersResource, func(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
-		// List of common Terraform providers
-		commonProviders := []string{
-			"aws",
-			"google",
-			"azurerm",
-			"kubernetes",
-			"github",
-			"docker",
-			"null",
-			"random",
-			"time",
-			"local",
-			"tls",
-			"vault",
-		}
-
-		resources := make([]mcp.ResourceContents, 0, len(commonProviders))
-		for _, provider := range commonProviders {
-			resources = append(resources, mcp.TextResourceContents{
-				URI:      fmt.Sprintf("registry://providers/hashicorp/%s", provider),
-				MIMEType: "text/plain", // Assuming plain text for the provider name
-				Text:     provider,
-			})
-		}
-
-		return resources, nil
-	})
-
-	// Initialize default service discovery and http client for registry
-	// discoClient := disco.New() // Restore disco client initialization
-	// httpClient := http.DefaultClient
-	// registryClient := registry.NewClient(discoClient, httpClient) // Restore registry client initialization
-
-	// Initialize toolsets that are used for TF Registry - no auth is needed
-	// toolsets, err := tfregistry.InitToolsets(enabled, cfg.readOnly, registryClient, t) // Restore toolset initialization
-	// context := tfregistry.InitContextToolset(registryClient, t)                        // Restore context initialization
-
-	// if err != nil { // Restore error check
-	// 	stdlog.Fatal("Failed to initialize toolsets:", err) // This error check might need adjustment based on refactoring
-	// } // Restore error check
-
-	// // Register resources with the server
-	// tfregistry.RegisterResources(hcServer, registryClient, t) // Restore resource registration
-	// // Register the tools with the server
-	// toolsets.RegisterTools(hcServer) // Restore tool registration
-	// context.RegisterTools(hcServer)  // Restore context registration
-
-	// if dynamic {
-	// 	dynamic := tfregistry.InitDynamicToolset(hcServer, toolsets, t) // Restore dynamic toolset initialization
-	// 	dynamic.RegisterTools(hcServer)                                 // Restore dynamic tool registration
-	// }
-
+	toolsets.RegisterTools(hcServer)
+	dynamicToolSet.RegisterTools(hcServer)
+  
+	tfregistry.RegisterResources(hcServer, registryClient, t)
 	stdioServer := server.NewStdioServer(hcServer)
 
 	stdLogger := stdlog.New(cfg.logger.Writer(), "stdioserver", 0)
