@@ -1,5 +1,3 @@
-//go:build e2e
-
 package e2e_test
 
 import (
@@ -63,6 +61,7 @@ func TestE2E(t *testing.T) {
 		require.Equal(t, "hcp-terraform-mcp-server", result.ServerInfo.Name)
 	})
 
+	// TODO: split the tests into multiple files
 	t.Run("CallTool list_providers", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
