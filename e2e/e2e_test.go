@@ -4,7 +4,6 @@ package e2e_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -81,15 +80,11 @@ func TestE2E(t *testing.T) {
 		textContent, ok := response.Content[0].(mcp.TextContent)
 		require.True(t, ok, "expected content to be of type TextContent")
 
-		var trimmedContent struct {
-			Providers string `json:"providers"`
-		}
-		err = json.Unmarshal([]byte(textContent.Text), &trimmedContent)
-		require.NoError(t, err, "expected to unmarshal text content successfully")
+		t.Logf("Raw response content: %s", textContent.Text)
 
 		// Then the login in the response should match the login obtained via the same
 		// token using the GitHub API.
-		require.Equal(t, trimmedContent.Providers, "aws, google, azurerm, kubernetes, github, docker, null, random", "expected providers to match")
+		require.Equal(t, "aws, google, azurerm, kubernetes, github, docker, null, random", textContent.Text, "expected providers to match")
 	})
 
 	require.NoError(t, client.Close(), "expected to close client successfully")
