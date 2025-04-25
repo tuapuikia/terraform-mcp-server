@@ -8,15 +8,14 @@ import (
 	"hcp-terraform-mcp-server/pkg/hashicorp/tfregistry"
 	"io"
 	stdlog "log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"net/http"
 
 	// TODO: Refactor dependent packages to use TFE client instead of GitHub client
 
 	iolog "github.com/github/github-mcp-server/pkg/log"
-	"github.com/github/github-mcp-server/pkg/translations"
 
 	// gogithub "github.com/google/go-github/v69/github" // Removed GitHub client import
 
@@ -126,18 +125,6 @@ func runStdioServer(cfg runConfig) error {
 	// Create app context
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	t, dumpTranslations := translations.TranslationHelper()
-	enabled := cfg.enabledToolsets
-	dynamic := viper.GetBool("dynamic_toolsets")
-	if dynamic {
-		// filter "all" from the enabled toolsets
-		enabled = make([]string, 0, len(cfg.enabledToolsets))
-		for _, toolset := range cfg.enabledToolsets {
-			if toolset != "all" {
-				enabled = append(enabled, toolset)
-			}
-		}
-	}
 	hcServer := hashicorp.NewServer(version)
 
 	tfeToken := viper.GetString("HCP_TFE_TOKEN")
@@ -147,24 +134,16 @@ func runStdioServer(cfg runConfig) error {
 			tfeAddress = "https://app.terraform.io"
 			cfg.logger.Warnf("HCP_TFE_ADDRESS not set, defaulting to %s", tfeAddress)
 		}
-		tfenterprise.Init(hcServer, tfeToken, tfeAddress, enabled, cfg.readOnly, t)
+		tfenterprise.Init(hcServer, tfeToken, tfeAddress)
 	} else {
 		cfg.logger.Warnf("HCP_TFE_TOKEN not set, defaulting to non-authenticated client")
 	}
 
 	registryClient := &http.Client{}
-	toolsets, err := tfregistry.InitToolsets(enabled, cfg.readOnly, registryClient, t)
-	if err != nil {
-		return fmt.Errorf("failed to initialize registry toolset: %v", err)
-	}
-	dynamicToolSet := tfregistry.InitDynamicToolset(hcServer, toolsets, t)
+	tfregistry.InitTools(hcServer, registryClient)
+	tfregistry.RegisterResources(hcServer, registryClient)
 
-	toolsets.RegisterTools(hcServer)
-	dynamicToolSet.RegisterTools(hcServer)
-  
-	tfregistry.RegisterResources(hcServer, registryClient, t)
 	stdioServer := server.NewStdioServer(hcServer)
-
 	stdLogger := stdlog.New(cfg.logger.Writer(), "stdioserver", 0)
 	stdioServer.SetErrorLogger(stdLogger)
 
@@ -183,11 +162,6 @@ func runStdioServer(cfg runConfig) error {
 
 	// Output github-mcp-server string // TODO: Update this message?
 	_, _ = fmt.Fprintf(os.Stderr, "HCP Terraform MCP Server running on stdio\n")
-
-	if cfg.exportTranslations {
-		// Once server is initialized, all translations are loaded
-		dumpTranslations()
-	}
 
 	// Wait for shutdown signal
 	select {
