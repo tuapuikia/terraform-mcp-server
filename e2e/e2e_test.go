@@ -15,14 +15,10 @@ import (
 )
 
 func TestE2E(t *testing.T) {
-	e2eServerToken := os.Getenv("HCP_TFE_TOKEN")
-	if e2eServerToken == "" {
-		t.Fatalf("HCP_TFE_TOKEN environment variable is not set")
-	}
-
 	// Build the Docker image for the MCP server.
 	buildDockerImage(t)
 
+	e2eServerToken := os.Getenv("HCP_TFE_TOKEN")
 	t.Setenv("HCP_TFE_TOKEN", e2eServerToken) // The MCP Client merges the existing environment.
 	args := []string{
 		"docker",

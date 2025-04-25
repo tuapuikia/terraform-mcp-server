@@ -14,6 +14,13 @@ A service must be running that supports image building and container creation vi
 HCP_TFE_TOKEN=<YOUR TOKEN> go test -v --tags e2e ./e2e
 ```
 
+### Note: providing a `HCP_TFE_TOKEN` is only necessary if TFE Resource/Tools are wanting to be tested. If not set they'll be skipped since TFE related tests contain the following:
+```go
+		if e2eServerToken == "" {
+			t.Skip("HCP_TFE_TOKEN environment variable is not set, skipping")
+		}
+```
+
 Running the tests:
 
 ```
