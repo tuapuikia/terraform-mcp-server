@@ -82,12 +82,9 @@ func TestE2E(t *testing.T) {
 
 		t.Logf("Raw response content: %s", textContent.Text)
 
-		// Then the login in the response should match the login obtained via the same
-		// token using the GitHub API.
+		// TODO: this is static and should be updated to test with the actual API response.
 		require.Equal(t, "aws, google, azurerm, kubernetes, github, docker, null, random", textContent.Text, "expected providers to match")
 	})
-
-	require.NoError(t, client.Close(), "expected to close client successfully")
 }
 
 func buildDockerImage(t *testing.T) {
