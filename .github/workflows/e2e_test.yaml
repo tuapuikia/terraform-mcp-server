@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  e2e-test:
     strategy:
       fail-fast: false
       matrix:
