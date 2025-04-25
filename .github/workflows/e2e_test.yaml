@@ -1,0 +1,37 @@
+name: E2E Tests
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      HCP_TFE_TOKEN: # Choose a descriptive name for your input
+        description: 'HCP TFE Token used to include testing of TFE Resources/Tools'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  e2e-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Set up Go
+        uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b
+        with:
+          go-version-file: "go.mod"
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run unit tests
+        env:
+          HCP_TFE_TOKEN: ${{ github.input.HCP_TFE_TOKEN }} # We'll want to figure out how we can setup of a HCP account for testing purposes.
+        run: go test -v ./e2e
+
+      - name: Build
+        run: go build -v ./cmd/hcp-terraform-mcp-server
