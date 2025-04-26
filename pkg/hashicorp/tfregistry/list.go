@@ -2,18 +2,17 @@ package tfregistry
 
 import (
 	"context"
-	"strings"
 	"net/http"
+	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
-	"github.com/github/github-mcp-server/pkg/translations"
 )
 
 // ListProviders creates a tool to list Terraform providers.
-func ListProviders(registryClient *http.Client, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func ListProviders(registryClient *http.Client) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("list_providers",
-			mcp.WithDescription(t("TOOL_LIST_PROVIDERS_DESCRIPTION", "List providers accessible by the credential.")),
+			mcp.WithDescription("List providers accessible by the credential."),
 			// TODO: Add pagination parameters here using the correct mcp-go mechanism
 			// Example (conceptual):
 			// mcp.WithInteger("page_number", mcp.Description("Page number"), mcp.Optional()),
@@ -25,7 +24,7 @@ func ListProviders(registryClient *http.Client, t translations.TranslationHelper
 			// pageSize, _ := OptionalParam[int](request, "page_size")
 
 			commonProviders := []string{
-				"aws", "google", "azurerm", "kubernetes", 
+				"aws", "google", "azurerm", "kubernetes",
 				"github", "docker", "null", "random",
 			}
 
