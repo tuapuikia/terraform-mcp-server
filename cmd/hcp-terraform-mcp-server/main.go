@@ -29,6 +29,15 @@ var version = "version"
 var commit = "commit"
 var date = "date"
 
+func InitProviderClient() *http.Client {
+	client := &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+		},
+	}
+	return client
+}
+
 var (
 	rootCmd = &cobra.Command{
 		Use:     "server",
@@ -139,8 +148,8 @@ func runStdioServer(cfg runConfig) error {
 		cfg.logger.Warnf("HCP_TFE_TOKEN not set, defaulting to non-authenticated client")
 	}
 
-	registryClient := &http.Client{}
-	tfregistry.InitTools(hcServer, registryClient)
+	registryClient := InitProviderClient()
+	tfregistry.InitTools(hcServer, registryClient, cfg.logger)
 	tfregistry.RegisterResources(hcServer, registryClient)
 
 	stdioServer := server.NewStdioServer(hcServer)
