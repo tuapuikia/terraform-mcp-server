@@ -9,7 +9,7 @@ import (
 )
 
 func SendRegistryCall(client *http.Client, method string, uri string, logger *log.Logger, apiVersion ...string) ([]byte, error) {
-	version := "v2"
+	version := "v1"
 	if len(apiVersion) > 0 {
 		version = apiVersion[0]
 	}
