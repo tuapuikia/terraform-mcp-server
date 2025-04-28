@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"hcp-terraform-mcp-server/pkg/hashicorp"
 	"net/http"
 	"strings"
 
@@ -110,7 +109,7 @@ func getModuleDetails(providerClient *http.Client, namespace string, name string
 
 func UnmarshalTFModulePlural(response []byte) (*string, error) {
 	// Get the list of modules
-	var terraformModules hashicorp.TerraformModules
+	var terraformModules TerraformModules
 	err := json.Unmarshal(response, &terraformModules)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshalling modules: %w", err)
@@ -131,7 +130,7 @@ func UnmarshalTFModulePlural(response []byte) (*string, error) {
 
 func UnmarshalTFModuleSingular(response []byte) (*string, error) {
 	// Handles one module
-	var terraformModules hashicorp.TerraformModuleVersionDetails
+	var terraformModules TerraformModuleVersionDetails
 	err := json.Unmarshal(response, &terraformModules)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshalling module: %w", err)
