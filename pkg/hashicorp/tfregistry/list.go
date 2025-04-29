@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 
@@ -147,12 +148,8 @@ func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (t
 const MODULE_BASE_PATH = "registry://modules"
 
 func ListModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	listModulesTool := mcp.NewTool("listModules",
-		mcp.WithDescription("List Terraform modules based on name and namespace from the Terraform registry."),
-		mcp.WithString("name",
-			mcp.DefaultString(""),
-			mcp.Description("The name of the modules to retrieve"),
-		),
+	listModulesTool := mcp.NewTool("list_modules",
+		mcp.WithDescription("List modules."),
 		mcp.WithString("namespace",
 			mcp.DefaultString(""),
 			mcp.Description("The namespace of the modules to retrieve"),
@@ -161,6 +158,15 @@ func ListModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool
 			mcp.Description("Current offset for pagination"),
 			mcp.Min(0),
 			mcp.DefaultNumber(0),
+		),
+		mcp.WithString("name",
+			mcp.DefaultString(""),
+			mcp.Description("The name of the module to retrieve"),
+		),
+		// TODO: We shouldn't need to include provider as an input, we could potentially grab the provider value from first GET and then perform a second GET with the provider value
+		mcp.WithString("provider",
+			mcp.DefaultString(""),
+			mcp.Description("The provider to retrieve"),
 		),
 	)
 
@@ -250,14 +256,78 @@ func UnmarshalTFModuleSingular(response []byte) (*string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshalling module: %w", err)
 	}
-	content := fmt.Sprintf("# %s modules\n\n", MODULE_BASE_PATH)
-	content += fmt.Sprintf("## %s \n\n**Id:** %s \n\n**OwnerName:** %s\n\n**Namespace:** %s\n\n**Source:** %s\n\n",
-		terraformModules.Name,
-		terraformModules.ID,
-		terraformModules.Owner,
-		terraformModules.Namespace,
-		terraformModules.Source,
-		// TODO: Add more details
-	)
+
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("# %s/%s/%s\n\n", MODULE_BASE_PATH, terraformModules.Namespace, terraformModules.Name))
+	builder.WriteString(fmt.Sprintf("**Description:** %s\n\n", terraformModules.Description))
+	builder.WriteString(fmt.Sprintf("**Module Version:** %s\n\n", terraformModules.Version))
+	builder.WriteString(fmt.Sprintf("**Namespace:** %s\n\n", terraformModules.Namespace))
+	builder.WriteString(fmt.Sprintf("**Source:** %s\n\n", terraformModules.Source))
+
+	// Format Inputs
+	if len(terraformModules.Root.Inputs) > 0 {
+		builder.WriteString("### Inputs\n\n")
+		builder.WriteString("| Name | Type | Description | Default | Required |\n")
+		builder.WriteString("|---|---|---|---|---|\n")
+		for _, input := range terraformModules.Root.Inputs {
+			builder.WriteString(fmt.Sprintf("| %s | %s | %s | `%v` | %t |\n",
+				input.Name,
+				input.Type,
+				input.Description, // Consider cleaning potential newlines/markdown
+				input.Default,
+				input.Required,
+			))
+		}
+		builder.WriteString("\n")
+	}
+
+	// Format Outputs
+	if len(terraformModules.Root.Outputs) > 0 {
+		builder.WriteString("### Outputs\n\n")
+		builder.WriteString("| Name | Description |\n")
+		builder.WriteString("|---|---|\n")
+		for _, output := range terraformModules.Root.Outputs {
+			builder.WriteString(fmt.Sprintf("| %s | %s |\n",
+				output.Name,
+				output.Description, // Consider cleaning potential newlines/markdown
+			))
+		}
+		builder.WriteString("\n")
+	}
+
+	// Format Provider Dependencies
+	if len(terraformModules.Root.ProviderDependencies) > 0 {
+		builder.WriteString("### Provider Dependencies\n\n")
+		builder.WriteString("| Name | Namespace | Source | Version |\n")
+		builder.WriteString("|---|---|---|---|\n")
+		for _, dep := range terraformModules.Root.ProviderDependencies {
+			builder.WriteString(fmt.Sprintf("| %s | %s | %s | %s |\n",
+				dep.Name,
+				dep.Namespace,
+				dep.Source,
+				dep.Version,
+			))
+		}
+		builder.WriteString("\n")
+	}
+
+	// Format Examples
+	if len(terraformModules.Examples) > 0 {
+		builder.WriteString("### Examples\n\n")
+		for _, example := range terraformModules.Examples {
+			builder.WriteString(fmt.Sprintf("#### %s\n\n", example.Name))
+			// Optionally, include more details from example if needed, like inputs/outputs
+			// For now, just listing the name.
+			if example.Readme != "" {
+				builder.WriteString("**Readme:**\n\n")
+				// Append readme content, potentially needs markdown escaping/sanitization depending on source
+				builder.WriteString(example.Readme)
+				builder.WriteString("\n\n")
+			}
+		}
+		builder.WriteString("\n")
+	}
+
+	content := builder.String()
 	return &content, nil
 }
