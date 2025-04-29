@@ -232,10 +232,10 @@ func UnmarshalTFModulePlural(response []byte) (*string, error) {
 
 	content := fmt.Sprintf("# %s modules\n\n", MODULE_BASE_PATH)
 	for _, module := range terraformModules.Data {
-		content += fmt.Sprintf("## %s \n\n**Id:** %s \n\n**OwnerName:** %s\n\n**Namespace:** %s\n\n**Source:** %s\n\n",
+		content += fmt.Sprintf("## %s \n\n**Description:** %s \n\n**Module Version:** %s\n\n**Namespace:** %s\n\n**Source:** %s\n\n",
 			module.Name,
-			module.ID,
-			module.Owner,
+			module.Description,
+			module.Version,
 			module.Namespace,
 			module.Source,
 		)
