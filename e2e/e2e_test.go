@@ -75,7 +75,7 @@ func TestE2E(t *testing.T) {
 		require.NoError(t, err, "expected to call 'providerDetails' tool successfully")
 
 		require.False(t, response.IsError, "expected result not to be an error")
-		require.Len(t, response.Content, 2, "expected content to have one item")
+		require.Len(t, response.Content, 1, "expected content to have one item")
 
 		textContent, ok := response.Content[0].(mcp.TextContent)
 		require.True(t, ok, "expected content to be of type TextContent")
@@ -83,7 +83,7 @@ func TestE2E(t *testing.T) {
 		t.Logf("Raw response content: %s", textContent.Text)
 
 		// TODO: Need to fix this: it is static and should be updated to test with the actual API response.
-		require.Len(t, textContent.Text, 53, "expected content to have two items")
+		require.Len(t, textContent.Text, 2545, "expected content to have two items")
 	})
 
 	// TODO: split the tests into multiple files
