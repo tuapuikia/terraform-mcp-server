@@ -65,11 +65,11 @@ func ExtractProviderNameAndVersion(uri string) (string, string, string) {
 	return parts[0], parts[2], parts[4]
 }
 
-func ConstructProviderVersionURI(providerNamespace string, providerName string, providerVersion string) string {
+func ConstructProviderVersionURI(providerNamespace interface{}, providerName string, providerVersion interface{}) string {
 	return fmt.Sprintf("registry://provider/%s/providers/%s/versions/%s", providerNamespace, providerName, providerVersion)
 }
 
-func GetLatestProviderVersion(providerClient *http.Client, namespace, name string, logger *log.Logger) string {
+func GetLatestProviderVersion(providerClient *http.Client, namespace, name interface{}, logger *log.Logger) string {
 	uri := fmt.Sprintf("providers/%s/%s", namespace, name)
 	jsonData, err := sendRegistryCall(providerClient, "GET", uri, logger, "v1")
 	if err != nil {

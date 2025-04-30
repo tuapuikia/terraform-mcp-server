@@ -30,14 +30,18 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 			// pageSize, _ := OptionalParam[int](request, "page_size")
 
 			name := request.Params.Arguments["name"].(string)
-			namespace := request.Params.Arguments["namespace"].(string)
-			version := request.Params.Arguments["version"].(string)
+			namespace := request.Params.Arguments["namespace"]
+			version := request.Params.Arguments["version"]
 
-			if namespace == "" {
+			if ns, ok := namespace.(string); ok && ns != "" {
+				namespace = ns
+			} else {
 				namespace = "hashicorp"
 			}
 
-			if version == "" || version == "latest" {
+			if v, ok := version.(string); ok && v != "" && v != "latest" {
+				version = v
+			} else {
 				version = GetLatestProviderVersion(registryClient, namespace, name, logger)
 			}
 
