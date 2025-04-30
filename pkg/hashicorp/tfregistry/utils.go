@@ -134,9 +134,9 @@ func GetProviderDocs(jsonData []byte, logger *log.Logger) (ProviderDocs, error) 
 	return response, nil
 }
 
-func GetProviderResourceDetails(client *http.Client, providerVersionID, resource string, logger *log.Logger) (string, error) {
+func GetProviderResourceDetails(client *http.Client, providerVersionID, resource string, sourceTypes []string, logger *log.Logger) (string, error) {
 	var content string
-	for _, category := range []string{"resources", "data-sources"} {
+	for _, category := range sourceTypes {
 		uri := fmt.Sprintf("provider-docs?filter[provider-version]=%s&filter[category]=%s", providerVersionID, category)
 		response, err := sendRegistryCall(client, "GET", uri, logger, "v2")
 		if err != nil {
