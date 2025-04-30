@@ -34,6 +34,6 @@ func SendRegistryCall(client *http.Client, method string, uri string, logger *lo
 	if err != nil {
 		return nil, err
 	}
-
+	logger.Debugf("Response body: %s", string(body))
 	return body, nil
 }

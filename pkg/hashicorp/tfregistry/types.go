@@ -6,6 +6,14 @@ import "time"
 // Note: The API seems to return different structures, this one matches the
 // format where the top-level key is "modules".
 type TerraformModules struct {
+	Metadata struct {
+		Limit         int    `json:"limit"`          // Limit is 15
+		CurrentOffset int    `json:"current_offset"` // always starts at 0
+		NextOffset    int    `json:"next_offset"`    // always starts at 15
+		PrevOffset    int    `json:"prev_offset"`    // always starts at nil
+		NextURL       string `json:"next_url"`
+		PrevURL       string `json:"prev_url"`
+	} `json:"meta"`
 	Data []struct {
 		ID          string    `json:"id"`
 		Owner       string    `json:"owner"`
