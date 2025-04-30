@@ -20,10 +20,7 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 			mcp.WithString("namespace", mcp.Description("The namespace of the provider to retrieve"), mcp.DefaultString("hashicorp")),
 			mcp.WithString("version", mcp.Description("The version of the provider to retrieve"), mcp.DefaultString("latest")),
 			mcp.WithString("sourceType", mcp.Description("The source type of the Terraform provider to retrieve, can be 'resources' or 'data-sources'"), mcp.DefaultString("resources")),
-			// TODO: Add pagination parameters here using the correct mcp-go mechanism
-			// Example (conceptual):
-			// mcp.WithInteger("page_number", mcp.Description("Page number"), mcp.Optional()),
-			// mcp.WithInteger("page_size", mcp.Description("Page size"), mcp.Optional()),
+			mcp.WithNumber("pageNumber", mcp.Description("Page number"), mcp.DefaultNumber(1)),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			// TODO: Parse pagination options
@@ -34,6 +31,8 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 			namespace := request.Params.Arguments["namespace"]
 			version := request.Params.Arguments["version"]
 			sourceType := request.Params.Arguments["sourceType"]
+			pageNumber := request.Params.Arguments["pageNumber"]
+
 			if ns, ok := namespace.(string); ok && ns != "" {
 				namespace = ns
 			} else {
@@ -54,10 +53,18 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 				return nil, logAndReturnError(logger, "getting provider details", err)
 			}
 			var uri string
-			if sourceType, ok := sourceType.(string); ok && sourceType != "" {
-				uri = fmt.Sprintf("provider-docs?filter[provider-version]=%s&filter[category]=%s", providerVersionID, sourceType)
+			if pnum, ok := pageNumber.(float64); ok && pnum != 0 {
+				if sourceType, ok := sourceType.(string); ok && sourceType != "" {
+					uri = fmt.Sprintf("provider-docs?filter[provider-version]=%s&filter[category]=%s&page[number]=%v", providerVersionID, sourceType, pnum)
+				} else {
+					uri = fmt.Sprintf("provider-docs?filter[provider-version]=%s&page[number]=%v", providerVersionID, pnum)
+				}
 			} else {
-				uri = fmt.Sprintf("provider-docs?filter[provider-version]=%s", providerVersionID)
+				if sourceType, ok := sourceType.(string); ok && sourceType != "" {
+					uri = fmt.Sprintf("provider-docs?filter[provider-version]=%s&filter[category]=%s", providerVersionID, sourceType)
+				} else {
+					uri = fmt.Sprintf("provider-docs?filter[provider-version]=%s", providerVersionID)
+				}
 			}
 			response, err := sendRegistryCall(registryClient, "GET", uri, logger, "v2")
 			if err != nil {
