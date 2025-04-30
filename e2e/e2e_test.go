@@ -58,16 +58,21 @@ func TestE2E(t *testing.T) {
 	})
 
 	// TODO: split the tests into multiple files
-	t.Run("CallTool list_providers", func(t *testing.T) {
+	t.Run("CallTool providerDetails", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
 		// When we call the "get_me" tool
 		request := mcp.CallToolRequest{}
-		request.Params.Name = "list_providers"
+		request.Params.Name = "providerDetails"
+		request.Params.Arguments = map[string]interface{}{
+			"name":      "aws",
+			"namespace": "hashicorp",
+			"version":   "latest",
+		}
 
 		response, err := client.CallTool(ctx, request)
-		require.NoError(t, err, "expected to call 'list_providers' tool successfully")
+		require.NoError(t, err, "expected to call 'providerDetails' tool successfully")
 
 		require.False(t, response.IsError, "expected result not to be an error")
 		require.Len(t, response.Content, 1, "expected content to have one item")
@@ -77,24 +82,24 @@ func TestE2E(t *testing.T) {
 
 		t.Logf("Raw response content: %s", textContent.Text)
 
-		// TODO: this is static and should be updated to test with the actual API response.
-		require.Equal(t, "aws, google, azurerm, kubernetes, github, docker, null, random", textContent.Text, "expected providers to match")
+		// TODO: Need to fix this: it is static and should be updated to test with the actual API response.
+		require.Len(t, textContent.Text, 2545, "expected content to have two items")
 	})
 
 	// TODO: split the tests into multiple files
-	t.Run("CallTool list_modules", func(t *testing.T) {
+	t.Run("CallTool listModules", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
 		// When we call the "get_me" tool
 		request := mcp.CallToolRequest{}
-		request.Params.Name = "list_modules"
+		request.Params.Name = "listModules"
 		request.Params.Arguments = map[string]interface{}{
 			"name":      "",
 			"namespace": "",
 		}
 		response, err := client.CallTool(ctx, request)
-		require.NoError(t, err, "expected to call 'list_modules' tool successfully")
+		require.NoError(t, err, "expected to call 'listModules' tool successfully")
 
 		require.False(t, response.IsError, "expected result not to be an error")
 		require.Len(t, response.Content, 2, "expected content to have two items")

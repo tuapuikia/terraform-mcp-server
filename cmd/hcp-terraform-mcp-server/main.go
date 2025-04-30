@@ -29,7 +29,7 @@ var version = "version"
 var commit = "commit"
 var date = "date"
 
-func InitProviderClient() *http.Client {
+func InitRegistryClient() *http.Client {
 	client := &http.Client{
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
@@ -148,9 +148,10 @@ func runStdioServer(cfg runConfig) error {
 		cfg.logger.Warnf("HCP_TFE_TOKEN not set, defaulting to non-authenticated client")
 	}
 
-	registryClient := InitProviderClient()
+	registryClient := InitRegistryClient()
 	tfregistry.InitTools(hcServer, registryClient, cfg.logger)
-	tfregistry.RegisterResources(hcServer, registryClient)
+	tfregistry.RegisterResources(hcServer, registryClient, cfg.logger)
+	tfregistry.RegisterResourceTemplates(hcServer, registryClient, cfg.logger)
 
 	stdioServer := server.NewStdioServer(hcServer)
 	stdLogger := stdlog.New(cfg.logger.Writer(), "stdioserver", 0)
