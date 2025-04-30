@@ -78,9 +78,9 @@ func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (t
 	return mcp.NewTool("providerResourceDetails",
 			mcp.WithDescription("Retrieve details about deploying resources using a specific Terraform provider."),
 			mcp.WithString("name", mcp.Required(), mcp.Description("The name of the provider to retrieve")),
+			mcp.WithString("resource", mcp.Required(), mcp.Description("The resource of the Terraform provider to retrieve")),
 			mcp.WithString("namespace", mcp.Description("The namespace of the provider to retrieve"), mcp.DefaultString("hashicorp")),
 			mcp.WithString("version", mcp.Description("The version of the provider to retrieve"), mcp.DefaultString("latest")),
-			mcp.WithString("resource", mcp.Required(), mcp.Description("The resource of the Terraform provider to retrieve")),
 			// TODO: Add pagination parameters here using the appropriate mcp-go mechanism
 			// Example (conceptual):
 			// mcp.WithInteger("page_number", mcp.Description("Page number"), mcp.Optional()),
@@ -92,18 +92,26 @@ func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (t
 			// pageSize, _ := OptionalParam[int](request, "page_size")
 
 			name := request.Params.Arguments["name"].(string)
-			namespace := request.Params.Arguments["namespace"].(string)
-			version := request.Params.Arguments["version"].(string)
 			resource := request.Params.Arguments["resource"].(string)
+			namespace := request.Params.Arguments["namespace"]
+			version := request.Params.Arguments["version"]
 
-			if version == "" || version == "latest" {
+			if ns, ok := namespace.(string); ok && ns != "" {
+				namespace = ns
+			} else {
+				namespace = "hashicorp"
+			}
+
+			if v, ok := version.(string); ok && v != "" && v != "latest" {
+				version = v
+			} else {
 				version = GetLatestProviderVersion(registryClient, namespace, name, logger)
 			}
 
 			providerUri := ConstructProviderVersionURI(namespace, name, version)
 			logger.Debugf("Constructed provider URI: %s", providerUri)
 
-			providerVersionID, providerVersionUri, err := GetProviderDetails(registryClient, providerUri, logger)
+			providerVersionID, _, err := GetProviderDetails(registryClient, providerUri, logger)
 			if err != nil {
 				return nil, logAndReturnError(logger, "retrieving provider details", err)
 			}
@@ -117,12 +125,7 @@ func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (t
 				content = fmt.Sprintf("Resource '%s' not found in the provider documentation", resource)
 			}
 
-			resourceContent := mcp.TextResourceContents{
-				MIMEType: "text/markdown",
-				URI:      providerVersionUri,
-				Text:     content,
-			}
-			return mcp.NewToolResultResource(providerVersionUri, resourceContent), nil
+			return mcp.NewToolResultText(content), nil
 		}
 }
 
