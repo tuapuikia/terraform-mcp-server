@@ -48,7 +48,7 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 			providerUri := ConstructProviderVersionURI(namespace, name, version)
 			logger.Debugf("Constructed provider URI: %s", providerUri)
 
-			providerVersionID, providerVersionUri, err := GetProviderDetails(registryClient, providerUri, logger)
+			providerVersionID, _, err := GetProviderDetails(registryClient, providerUri, logger)
 			if err != nil {
 				return nil, logAndReturnError(logger, "getting provider details", err)
 			}
@@ -70,12 +70,7 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 					doc.Attributes.Title, doc.ID, doc.Attributes.Category, doc.Attributes.Subcategory, doc.Attributes.Path)
 			}
 
-			resourceContent := mcp.TextResourceContents{
-				MIMEType: "text/markdown",
-				URI:      providerVersionUri,
-				Text:     content,
-			}
-			return mcp.NewToolResultResource(providerVersionUri, resourceContent), nil
+			return mcp.NewToolResultText(content), nil
 		}
 }
 
