@@ -8,5 +8,6 @@ import (
 var DefaultTools = []string{"all"}
 
 func InitTools(hcServer *server.MCPServer, tfeClient *tfe.Client) {
-	hcServer.AddTool(ListWorkspaces(tfeClient))
+	// TODO: Uncomment on phase 2
+	// hcServer.AddTool(ListWorkspaces(tfeClient))
 }

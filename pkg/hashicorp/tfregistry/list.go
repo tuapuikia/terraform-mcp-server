@@ -16,17 +16,13 @@ import (
 // ProviderDetails creates a tool to get provider details from registry.
 func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("providerDetails",
-			mcp.WithDescription("Get Terraform provider details by namespace, name and version from the Terraform registry."),
+			mcp.WithDescription("Get information about a terraform provider such as guides, examples, resources, data sources, etc."),
 			mcp.WithString("name", mcp.Required(), mcp.Description("The name of the provider to retrieve")),
-			mcp.WithString("namespace", mcp.Description("The namespace of the provider to retrieve"), mcp.DefaultString("hashicorp")),
-			mcp.WithString("version", mcp.Description("The version of the provider to retrieve"), mcp.DefaultString("latest")),
+			mcp.WithString("namespace", mcp.Description("The namespace of the provider to retrieve")),
+			mcp.WithString("version", mcp.Description("The version of the provider to retrieve")),
 			mcp.WithString("sourceType", mcp.Description("The source type of the Terraform provider to retrieve, can be 'resources' or 'data-sources'")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			// TODO: Parse pagination options
-			// pageNumber, _ := OptionalParam[int](request, "page_number")
-			// pageSize, _ := OptionalParam[int](request, "page_size")
-
 			name := request.Params.Arguments["name"].(string)
 			namespace := request.Params.Arguments["namespace"]
 			version := request.Params.Arguments["version"]
@@ -44,42 +40,28 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 				version = GetLatestProviderVersion(registryClient, namespace, name, logger)
 			}
 
-			providerUri := ConstructProviderVersionURI(namespace, name, version)
-			logger.Debugf("Constructed provider URI: %s", providerUri)
-
-			providerVersionID, _, err := GetProviderDetails(registryClient, providerUri, logger)
+			uri := fmt.Sprintf("providers/%s/%s/%s", namespace, name, version)
+			response, err := sendRegistryCall(registryClient, "GET", uri, logger)
 			if err != nil {
 				return nil, logAndReturnError(logger, "getting provider details", err)
 			}
-			var uri string
+
+			var providerDocs ProviderDocs
+			if err := json.Unmarshal(response, &providerDocs); err != nil {
+				return nil, logAndReturnError(logger, "unmarshalling provider docs", err)
+			}
+
 			content := fmt.Sprintf("# %s provider docs\n\n", name)
-			var pageNumber float64 = 1
-			for {
-				if sourceType, ok := sourceType.(string); ok && sourceType != "" {
-					uri = fmt.Sprintf("provider-docs?filter[provider-version]=%s&filter[category]=%s&page[number]=%v", providerVersionID, sourceType, pageNumber)
-				} else {
-					uri = fmt.Sprintf("provider-docs?filter[provider-version]=%s&page[number]=%v", providerVersionID, pageNumber)
-				}
+			s, sourceTypeProvided := sourceType.(string) // Get the sourceType and check if it was provided
 
-				response, err := sendRegistryCall(registryClient, "GET", uri, logger, "v2")
-				if err != nil {
-					return nil, logAndReturnError(logger, "sending provider docs request", err)
-				}
-
-				var providerDocs ProviderDocs
-				if err := json.Unmarshal(response, &providerDocs); err != nil {
-					return nil, logAndReturnError(logger, "unmarshalling provider docs", err)
-				}
-
-				if len(providerDocs.Data) == 0 {
-					break
-				} else {
-					for _, doc := range providerDocs.Data {
+			for _, doc := range providerDocs.Docs {
+				// Include the doc if sourceType was not provided/empty OR if the doc category matches the provided sourceType
+				if !sourceTypeProvided || s == "" || doc.Category == s {
+					if doc.Language == "hcl" {
 						content += fmt.Sprintf("## %s \n\n**Id:** %s \n\n**Category:** %s\n\n**Subcategory:** %s\n\n**Path:** %s\n\n",
-							doc.Attributes.Title, doc.ID, doc.Attributes.Category, doc.Attributes.Subcategory, doc.Attributes.Path)
+							doc.Title, doc.ID, doc.Category, doc.Subcategory, doc.Path)
 					}
 				}
-				pageNumber++
 			}
 			return mcp.NewToolResultText(content), nil
 		}
@@ -88,24 +70,18 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("providerResourceDetails",
 			mcp.WithDescription("Retrieve details about deploying resources using a specific Terraform provider."),
-			mcp.WithString("sourceType", mcp.Description("The source type of the Terraform provider to retrieve")),
+			mcp.WithString("sourceType", mcp.Description("The source type of the Terraform provider to retrieve, resource or data-source")),
 			mcp.WithString("name", mcp.Required(), mcp.Description("The name of the provider to retrieve")),
 			mcp.WithString("sourceName", mcp.Required(), mcp.Description("The resource of the Terraform provider to retrieve")),
-			mcp.WithString("namespace", mcp.Description("The namespace of the provider to retrieve"), mcp.DefaultString("hashicorp")),
-			mcp.WithString("version", mcp.Description("The version of the provider to retrieve"), mcp.DefaultString("latest")),
-			mcp.WithNumber("pageNumber", mcp.Description("Page number"), mcp.DefaultNumber(1)),
+			mcp.WithString("namespace", mcp.Description("The namespace of the provider to retrieve")),
+			mcp.WithString("version", mcp.Description("The version of the provider to retrieve")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			// TODO: Parse pagination options
-			// pageNumber, _ := OptionalParam[int](request, "page_number")
-			// pageSize, _ := OptionalParam[int](request, "page_size")
-
 			name := request.Params.Arguments["name"].(string)
 			sourceName := request.Params.Arguments["sourceName"].(string)
 			namespace := request.Params.Arguments["namespace"]
 			version := request.Params.Arguments["version"]
 			sourceType := request.Params.Arguments["sourceType"]
-			pageNumber := request.Params.Arguments["pageNumber"]
 			if ns, ok := namespace.(string); ok && ns != "" {
 				namespace = ns
 			} else {
@@ -118,21 +94,7 @@ func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (t
 				version = GetLatestProviderVersion(registryClient, namespace, name, logger)
 			}
 
-			providerUri := ConstructProviderVersionURI(namespace, name, version)
-			logger.Debugf("Constructed provider URI: %s", providerUri)
-
-			providerVersionID, _, err := GetProviderDetails(registryClient, providerUri, logger)
-			if err != nil {
-				return nil, logAndReturnError(logger, "retrieving provider details", err)
-			}
-
-			var sourceTypeSlice []string
-			if s, ok := sourceType.(string); ok && s != "" {
-				sourceTypeSlice = []string{s}
-			} else {
-				sourceTypeSlice = []string{"resources", "data-sources"}
-			}
-			content, err := GetProviderResourceDetails(registryClient, providerVersionID, sourceName, sourceTypeSlice, pageNumber, logger)
+			content, err := GetProviderResourceDetails(registryClient, version, name, namespace, sourceName, sourceType, logger)
 			if err != nil {
 				return nil, err
 			}
@@ -149,9 +111,11 @@ const MODULE_BASE_PATH = "registry://modules"
 
 func ListModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	listModulesTool := mcp.NewTool("listModules",
-		mcp.WithDescription("List modules."),
+		mcp.WithDescription("List Terraform modules based on name and namespace from the Terraform registry."),
+		mcp.WithString("name",
+			mcp.Description("The name of the modules to retrieve"),
+		),
 		mcp.WithString("namespace",
-			mcp.DefaultString(""),
 			mcp.Description("The namespace of the modules to retrieve"),
 		),
 		mcp.WithNumber("currentOffset",

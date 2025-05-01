@@ -27,7 +27,7 @@ func ProviderResourceTemplate(registryClient *http.Client, resourceURI string, d
 			// mcp.WithInteger("page_size", mcp.Description("Page size"), mcp.Optional()),
 		),
 		func(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
-			providerVersionID, providerVersionUri, err := GetProviderDetails(registryClient, request.Params.URI, logger)
+			providerVersionID, providerVersionUri, err := GetProviderDetails(registryClient, request.Params.URI, request.Params.Arguments["version"].(string), logger)
 			logger.Debugf("Provider resource template - providerVersionID: %s, providerVersionUri: %s", providerVersionID, providerVersionUri)
 			if err != nil {
 				return nil, logAndReturnError(logger, "getting provider details", err)
@@ -50,10 +50,10 @@ func buildResourceContents(response []byte, baseUri string, logger *log.Logger) 
 		return nil, logAndReturnError(logger, "unmarshalling provider docs", err)
 	}
 
-	resourceContents := make([]mcp.ResourceContents, len(providerDocs.Data))
-	for i, doc := range providerDocs.Data {
+	resourceContents := make([]mcp.ResourceContents, len(providerDocs.Docs))
+	for i, doc := range providerDocs.Docs {
 		content := fmt.Sprintf("## %s \n\n**Id:** %s \n\n**Category:** %s\n\n**Subcategory:** %s\n\n**Path:** %s\n\n",
-			doc.Attributes.Title, doc.ID, doc.Attributes.Category, doc.Attributes.Subcategory, doc.Attributes.Path)
+			doc.Title, doc.ID, doc.Category, doc.Subcategory, doc.Path)
 		resourceContents[i] = mcp.TextResourceContents{
 			MIMEType: "text/markdown",
 			URI:      fmt.Sprintf("%s/%s", baseUri, doc.ID),

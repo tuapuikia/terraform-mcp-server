@@ -123,25 +123,34 @@ type ProviderVersionLatest struct {
 	Versions    []string  `json:"versions"`
 }
 
-// ProviderDocs represents the structure of each item in the "data" array.
-// https://registry.terraform.io/v2/provider-docs?filter[provider-version]=43126
+// ProviderDoc represents a single documentation item.
+type ProviderDoc struct {
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	Path        string `json:"path"`
+	Slug        string `json:"slug"`
+	Category    string `json:"category"`
+	Subcategory string `json:"subcategory"`
+	Language    string `json:"language"`
+}
+
+// ProviderDocs represents the structure of the provider details response.
 type ProviderDocs struct {
-	Data []struct {
-		Type       string `json:"type"`
-		ID         string `json:"id"`
-		Attributes struct {
-			Category    string `json:"category"`
-			Language    string `json:"language"`
-			Path        string `json:"path"`
-			Slug        string `json:"slug"`
-			Subcategory string `json:"subcategory"`
-			Title       string `json:"title"`
-			Truncated   bool   `json:"truncated"`
-		} `json:"attributes"`
-		Links struct {
-			Self string `json:"self"`
-		} `json:"links"`
-	} `json:"data"`
+	ID          string        `json:"id"`
+	Owner       string        `json:"owner"`
+	Namespace   string        `json:"namespace"`
+	Name        string        `json:"name"`
+	Alias       string        `json:"alias"`
+	Version     string        `json:"version"`
+	Tag         string        `json:"tag"`
+	Description string        `json:"description"`
+	Source      string        `json:"source"`
+	PublishedAt string        `json:"published_at"`
+	Downloads   int64         `json:"downloads"`
+	Tier        string        `json:"tier"`
+	LogoURL     string        `json:"logo_url"`
+	Versions    []string      `json:"versions"`
+	Docs        []ProviderDoc `json:"docs"`
 }
 
 // ProviderList represents the structure of the provider list response.

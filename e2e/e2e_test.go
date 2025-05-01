@@ -81,7 +81,7 @@ func TestE2E(t *testing.T) {
 		require.True(t, ok, "expected content to be of type TextContent")
 
 		// TODO: Need to fix this: it is static and should be updated to test with the actual API response.
-		require.Len(t, textContent.Text, 366038, "expected content to have two items")
+		require.Greater(t, len(textContent.Text), 100, "expected content length to be greater than 100")
 	})
 
 	// TODO: split the tests into multiple files

@@ -1,4 +1,14 @@
-# HCP Terraform MCP Server
+# HashiCorp Terraform MCP Server
+
+Terraform MCP Server is designed to assist DevOps practitioners in creating reliable Infrastructure as Code (IaC) automation with speed and ensuring recommended patterns.
+
+### Sample prompts
+```
+can you help deploy an ec2 instance in aws?
+give me information about `google_compute_disk`
+give me information about the aws provider
+can you help me deploy stuff with the azure provider?
+```
 
 ### Build from Docker
 ```

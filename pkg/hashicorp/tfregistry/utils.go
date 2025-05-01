@@ -11,7 +11,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func GetProviderDetails(providerClient *http.Client, uri string, logger *log.Logger) (string, string, error) {
+func GetProviderDetails(providerClient *http.Client, uri string, version interface{}, logger *log.Logger) (string, string, error) {
 	// Clean up the URI
 	namespace, name, version := ExtractProviderNameAndVersion(uri)
 	logger.Debugf("Extracted namespace: %s, name: %s, version: %s", namespace, name, version)
@@ -22,14 +22,14 @@ func GetProviderDetails(providerClient *http.Client, uri string, logger *log.Log
 	providerVersionUri := fmt.Sprintf("registry://provider/%s/name/%s/version/%s", namespace, name, version)
 
 	// Get the provider versions
-	uri = fmt.Sprintf("providers/%s/%s?include=provider-versions", namespace, name)
-	response, err := sendRegistryCall(providerClient, "GET", uri, logger, "v2")
+	uri = fmt.Sprintf("providers/%s/%s/%s", namespace, name, version)
+	response, err := sendRegistryCall(providerClient, "GET", uri, logger)
 	if err != nil {
 		logger.Errorf("Error sending request: %v", err)
 		return "", providerVersionUri, fmt.Errorf("error sending request: %w", err)
 	}
 	// Get the provider version-id
-	providerVersionID, err := GetProviderVersionID(response, version)
+	providerVersionID, err := GetProviderVersionID(response, version.(string))
 	if err != nil {
 		logger.Errorf("Error getting provider version ID: %v", err)
 		return "", providerVersionUri, fmt.Errorf("error getting provider version ID: %w", err)
@@ -112,79 +112,40 @@ func GetProviderVersionID(jsonData []byte, targetVersion string) (string, error)
 	return "", fmt.Errorf("provider version '%s' not found", targetVersion) // Return an error if not found.
 }
 
-// Function to get the provider version documentation.
-func GetProviderDocs(jsonData []byte, logger *log.Logger) (ProviderDocs, error) {
-	var response ProviderDocs
-	err := json.Unmarshal(jsonData, &response)
-	if err != nil {
-		return ProviderDocs{}, fmt.Errorf("error unmarshalling JSON: %w", err)
-	}
-
-	markdown := ""
-	// Create a markdown string using the fields from ProviderDocs.
-	for _, doc := range response.Data {
-		markdown += fmt.Sprintf("# %s \n\n**Id:** %s \n\n**Category:** %s\n\n**Subcategory:** %s\n\n**Path:** %s\n\n",
-			doc.Attributes.Title,
-			doc.ID,
-			doc.Attributes.Category,
-			doc.Attributes.Subcategory,
-			doc.Attributes.Path,
-		)
-	}
-
-	return response, nil
-}
-
-func GetProviderResourceDetails(client *http.Client, providerVersionID, sourceName string, sourceTypes []string, pageNumber interface{}, logger *log.Logger) (string, error) {
+func GetProviderResourceDetails(client *http.Client, version, name, namespace, sourceName, sourceType interface{}, logger *log.Logger) (string, error) {
 	var content string
 
-	var pageNumberFloat float64
-	if num, ok := pageNumber.(float64); ok && num != 1 {
-		pageNumberFloat = num
-	} else {
-		pageNumberFloat = 1
+	uri := fmt.Sprintf("providers/%s/%s/%s", namespace, name, version)
+	response, err := sendRegistryCall(client, "GET", uri, logger)
+	if err != nil {
+		return "", logAndReturnError(logger, "getting provider details", err)
 	}
 
-	for _, category := range sourceTypes {
-		for {
-			uri := fmt.Sprintf("provider-docs?filter[provider-version]=%s&filter[category]=%s&page[number]=%v", providerVersionID, category, pageNumberFloat)
-			response, err := sendRegistryCall(client, "GET", uri, logger, "v2")
-			if err != nil {
-				return "", logAndReturnError(logger, "sending provider docs request", err)
-			}
+	var providerDocs ProviderDocs
+	if err := json.Unmarshal(response, &providerDocs); err != nil {
+		return "", logAndReturnError(logger, "unmarshalling provider docs", err)
+	}
 
-			var providerDocs ProviderDocs
-			if err := json.Unmarshal(response, &providerDocs); err != nil {
-				return "", logAndReturnError(logger, "unmarshalling provider docs", err)
-			}
+	content = fmt.Sprintf("# %s provider docs\n\n", name)
+	s, sourceTypeProvided := sourceType.(string) // Get the sourceType and check if it was provided
 
-			if len(providerDocs.Data) == 0 {
-				return "", logAndReturnError(logger, "no provider docs found", fmt.Errorf("no provider docs found"))
-			}
-
-			for _, doc := range providerDocs.Data {
-				matched, err := containsSlug(sourceName, doc.Attributes.Slug)
+	for _, doc := range providerDocs.Docs {
+		// Include the doc if sourceType was not provided/empty OR if the doc category matches the provided sourceType
+		if !sourceTypeProvided || s == "" || doc.Category == s {
+			if match, err := containsSlug(sourceName.(string), doc.Slug); err == nil && match && doc.Language == "hcl" {
+				response, err := sendRegistryCall(client, "GET", fmt.Sprintf("provider-docs/%s", doc.ID), logger, "v2")
 				if err != nil {
-					return "", logAndReturnError(logger, "checking slug match", err)
+					logger.Errorf("Error sending request for provider-docs/%s: %v", doc.ID, err)
+					continue
 				}
-				if matched {
-					uri := fmt.Sprintf("provider-docs/%s", doc.ID)
-					response, err := sendRegistryCall(client, "GET", uri, logger, "v2")
-					if err != nil {
-						return "", logAndReturnError(logger, "sending provider details docs request", err)
-					}
-
-					var providerResourceDetails ProviderResourceDetails
-					if err := json.Unmarshal(response, &providerResourceDetails); err != nil {
-						return "", logAndReturnError(logger, "unmarshalling provider resource docs", err)
-					}
-					content += providerResourceDetails.Data.Attributes.Content
-					break
+				var details ProviderResourceDetails
+				if err := json.Unmarshal(response, &details); err == nil {
+					content += details.Data.Attributes.Content
+				} else {
+					logger.Errorf("Error unmarshalling provider resource details: %v", err)
 				}
-			}
-			pageNumberFloat++
-			if content != "" {
-				break
+			} else if err != nil {
+				logger.Errorf("Error checking slug match: %v", err)
 			}
 		}
 	}
