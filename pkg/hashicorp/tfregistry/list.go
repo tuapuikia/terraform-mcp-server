@@ -148,7 +148,7 @@ func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (t
 const MODULE_BASE_PATH = "registry://modules"
 
 func ListModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	listModulesTool := mcp.NewTool("list_modules",
+	listModulesTool := mcp.NewTool("listModules",
 		mcp.WithDescription("List modules."),
 		mcp.WithString("namespace",
 			mcp.DefaultString(""),
