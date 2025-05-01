@@ -110,20 +110,20 @@ func TestE2E(t *testing.T) {
 		require.Equal(t, "text", textResourceContents.Type, "expected modules to match")
 	})
 
-	t.Run("CallTool list_modules pagination", func(t *testing.T) {
+	t.Run("CallTool listModules pagination", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
 		// When we call the "get_me" tool
 		request := mcp.CallToolRequest{}
-		request.Params.Name = "list_modules"
+		request.Params.Name = "listModules"
 		request.Params.Arguments = map[string]interface{}{
 			"name":          "",
 			"namespace":     "",
 			"currentOffset": 0,
 		}
 		response, err := client.CallTool(ctx, request)
-		require.NoError(t, err, "expected to call 'list_modules' tool successfully")
+		require.NoError(t, err, "expected to call 'listModules' tool successfully")
 
 		require.False(t, response.IsError, "expected result not to be an error")
 		require.Len(t, response.Content, 1, "expected content to have one item")
@@ -139,7 +139,7 @@ func TestE2E(t *testing.T) {
 			"currentOffset": 15,
 		}
 		response, err = client.CallTool(ctx, request)
-		require.NoError(t, err, "expected to call 'list_modules' tool successfully")
+		require.NoError(t, err, "expected to call 'listModules' tool successfully")
 
 		require.False(t, response.IsError, "expected result not to be an error")
 		require.Len(t, response.Content, 1, "expected content to have one item")

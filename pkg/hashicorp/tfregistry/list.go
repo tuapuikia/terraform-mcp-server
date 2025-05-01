@@ -212,7 +212,7 @@ func getModuleDetails(providerClient *http.Client, namespace interface{}, name i
 	} else {
 		uri = fmt.Sprintf("%s?offset=%v", uri, 0)
 	}
-	response, err := SendRegistryCall(providerClient, "GET", uri, logger)
+	response, err := sendRegistryCall(providerClient, "GET", uri, logger)
 	if err != nil {
 		logger.Errorf("Error sending request: %v", err)
 		return nil, fmt.Errorf("error sending request: %w", err)
