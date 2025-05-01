@@ -20,7 +20,6 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 			mcp.WithString("namespace", mcp.Description("The namespace of the provider to retrieve"), mcp.DefaultString("hashicorp")),
 			mcp.WithString("version", mcp.Description("The version of the provider to retrieve"), mcp.DefaultString("latest")),
 			mcp.WithString("sourceType", mcp.Description("The source type of the Terraform provider to retrieve, can be 'resources' or 'data-sources'")),
-			mcp.WithNumber("pageNumber", mcp.Description("Page number"), mcp.DefaultNumber(1)),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			// TODO: Parse pagination options
@@ -31,7 +30,6 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 			namespace := request.Params.Arguments["namespace"]
 			version := request.Params.Arguments["version"]
 			sourceType := request.Params.Arguments["sourceType"]
-			pageNumber := request.Params.Arguments["pageNumber"]
 
 			if ns, ok := namespace.(string); ok && ns != "" {
 				namespace = ns
@@ -53,33 +51,35 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 				return nil, logAndReturnError(logger, "getting provider details", err)
 			}
 			var uri string
-			if pnum, ok := pageNumber.(float64); ok && pnum != 0 {
-				if sourceType, ok := sourceType.(string); ok && sourceType != "" {
-					uri = fmt.Sprintf("provider-docs?filter[provider-version]=%s&filter[category]=%s&page[number]=%v", providerVersionID, sourceType, pnum)
-				} else {
-					uri = fmt.Sprintf("provider-docs?filter[provider-version]=%s&page[number]=%v", providerVersionID, pnum)
-				}
-			} else if sourceType, ok := sourceType.(string); ok && sourceType != "" {
-				uri = fmt.Sprintf("provider-docs?filter[provider-version]=%s&filter[category]=%s", providerVersionID, sourceType)
-			} else {
-				uri = fmt.Sprintf("provider-docs?filter[provider-version]=%s", providerVersionID)
-			}
-			response, err := sendRegistryCall(registryClient, "GET", uri, logger, "v2")
-			if err != nil {
-				return nil, logAndReturnError(logger, "sending provider docs request", err)
-			}
-
-			var providerDocs ProviderDocs
-			if err := json.Unmarshal(response, &providerDocs); err != nil {
-				return nil, logAndReturnError(logger, "unmarshalling provider docs", err)
-			}
-
 			content := fmt.Sprintf("# %s provider docs\n\n", name)
-			for _, doc := range providerDocs.Data {
-				content += fmt.Sprintf("## %s \n\n**Id:** %s \n\n**Category:** %s\n\n**Subcategory:** %s\n\n**Path:** %s\n\n",
-					doc.Attributes.Title, doc.ID, doc.Attributes.Category, doc.Attributes.Subcategory, doc.Attributes.Path)
-			}
+			var pageNumber float64 = 1
+			for {
+				if sourceType, ok := sourceType.(string); ok && sourceType != "" {
+					uri = fmt.Sprintf("provider-docs?filter[provider-version]=%s&filter[category]=%s&page[number]=%v", providerVersionID, sourceType, pageNumber)
+				} else {
+					uri = fmt.Sprintf("provider-docs?filter[provider-version]=%s&page[number]=%v", providerVersionID, pageNumber)
+				}
 
+				response, err := sendRegistryCall(registryClient, "GET", uri, logger, "v2")
+				if err != nil {
+					return nil, logAndReturnError(logger, "sending provider docs request", err)
+				}
+
+				var providerDocs ProviderDocs
+				if err := json.Unmarshal(response, &providerDocs); err != nil {
+					return nil, logAndReturnError(logger, "unmarshalling provider docs", err)
+				}
+
+				if len(providerDocs.Data) == 0 {
+					break
+				} else {
+					for _, doc := range providerDocs.Data {
+						content += fmt.Sprintf("## %s \n\n**Id:** %s \n\n**Category:** %s\n\n**Subcategory:** %s\n\n**Path:** %s\n\n",
+							doc.Attributes.Title, doc.ID, doc.Attributes.Category, doc.Attributes.Subcategory, doc.Attributes.Path)
+					}
+				}
+				pageNumber++
+			}
 			return mcp.NewToolResultText(content), nil
 		}
 }
