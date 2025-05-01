@@ -17,8 +17,8 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 	return mcp.NewTool("providerDetails",
 			mcp.WithDescription("Get information about a terraform provider such as guides, examples, resources, data sources, etc."),
 			mcp.WithString("name", mcp.Required(), mcp.Description("The name of the provider to retrieve")),
-			mcp.WithString("namespace", mcp.Description("The namespace of the provider to retrieve"), mcp.DefaultString("hashicorp")),
-			mcp.WithString("version", mcp.Description("The version of the provider to retrieve"), mcp.DefaultString("latest")),
+			mcp.WithString("namespace", mcp.Description("The namespace of the provider to retrieve")),
+			mcp.WithString("version", mcp.Description("The version of the provider to retrieve")),
 			mcp.WithString("sourceType", mcp.Description("The source type of the Terraform provider to retrieve, can be 'resources' or 'data-sources'")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -56,8 +56,10 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 			for _, doc := range providerDocs.Docs {
 				// Include the doc if sourceType was not provided/empty OR if the doc category matches the provided sourceType
 				if !sourceTypeProvided || s == "" || doc.Category == s {
-					content += fmt.Sprintf("## %s \n\n**Id:** %s \n\n**Category:** %s\n\n**Subcategory:** %s\n\n**Path:** %s\n\n",
-						doc.Title, doc.ID, doc.Category, doc.Subcategory, doc.Path)
+					if doc.Language == "hcl" {
+						content += fmt.Sprintf("## %s \n\n**Id:** %s \n\n**Category:** %s\n\n**Subcategory:** %s\n\n**Path:** %s\n\n",
+							doc.Title, doc.ID, doc.Category, doc.Subcategory, doc.Path)
+					}
 				}
 			}
 			return mcp.NewToolResultText(content), nil
@@ -67,11 +69,11 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("providerResourceDetails",
 			mcp.WithDescription("Retrieve details about deploying resources using a specific Terraform provider."),
-			mcp.WithString("sourceType", mcp.Description("The source type of the Terraform provider to retrieve")),
+			mcp.WithString("sourceType", mcp.Description("The source type of the Terraform provider to retrieve, resource or data-source")),
 			mcp.WithString("name", mcp.Required(), mcp.Description("The name of the provider to retrieve")),
 			mcp.WithString("sourceName", mcp.Required(), mcp.Description("The resource of the Terraform provider to retrieve")),
-			mcp.WithString("namespace", mcp.Description("The namespace of the provider to retrieve"), mcp.DefaultString("hashicorp")),
-			mcp.WithString("version", mcp.Description("The version of the provider to retrieve"), mcp.DefaultString("latest")),
+			mcp.WithString("namespace", mcp.Description("The namespace of the provider to retrieve")),
+			mcp.WithString("version", mcp.Description("The version of the provider to retrieve")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			name := request.Params.Arguments["name"].(string)
@@ -110,11 +112,9 @@ func ListModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool
 	listModulesTool := mcp.NewTool("listModules",
 		mcp.WithDescription("List Terraform modules based on name and namespace from the Terraform registry."),
 		mcp.WithString("name",
-			mcp.DefaultString(""),
 			mcp.Description("The name of the modules to retrieve"),
 		),
 		mcp.WithString("namespace",
-			mcp.DefaultString(""),
 			mcp.Description("The namespace of the modules to retrieve"),
 		),
 		mcp.WithNumber("currentOffset",

@@ -35,7 +35,7 @@ type displayWorkspace struct {
 
 // ListWorkspaces creates a tool to list TFE workspaces within an organization.
 func ListWorkspaces(tfeClient *tfe.Client) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("list_workspaces",
+	return mcp.NewTool("listWorkspaces",
 			mcp.WithDescription("List workspaces within a specific organization."),
 			mcp.WithString("organization",
 				mcp.Required(),
