@@ -19,7 +19,7 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 			mcp.WithString("name", mcp.Required(), mcp.Description("The name of the provider to retrieve")),
 			mcp.WithString("namespace", mcp.Description("The namespace of the provider to retrieve"), mcp.DefaultString("hashicorp")),
 			mcp.WithString("version", mcp.Description("The version of the provider to retrieve"), mcp.DefaultString("latest")),
-			mcp.WithString("sourceType", mcp.Description("The source type of the Terraform provider to retrieve, can be 'resources' or 'data-sources'"), mcp.DefaultString("resources")),
+			mcp.WithString("sourceType", mcp.Description("The source type of the Terraform provider to retrieve, can be 'resources' or 'data-sources'")),
 			mcp.WithNumber("pageNumber", mcp.Description("Page number"), mcp.DefaultNumber(1)),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -59,12 +59,10 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 				} else {
 					uri = fmt.Sprintf("provider-docs?filter[provider-version]=%s&page[number]=%v", providerVersionID, pnum)
 				}
+			} else if sourceType, ok := sourceType.(string); ok && sourceType != "" {
+				uri = fmt.Sprintf("provider-docs?filter[provider-version]=%s&filter[category]=%s", providerVersionID, sourceType)
 			} else {
-				if sourceType, ok := sourceType.(string); ok && sourceType != "" {
-					uri = fmt.Sprintf("provider-docs?filter[provider-version]=%s&filter[category]=%s", providerVersionID, sourceType)
-				} else {
-					uri = fmt.Sprintf("provider-docs?filter[provider-version]=%s", providerVersionID)
-				}
+				uri = fmt.Sprintf("provider-docs?filter[provider-version]=%s", providerVersionID)
 			}
 			response, err := sendRegistryCall(registryClient, "GET", uri, logger, "v2")
 			if err != nil {

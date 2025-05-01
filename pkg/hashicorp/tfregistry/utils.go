@@ -150,15 +150,16 @@ func GetProviderResourceDetails(client *http.Client, providerVersionID, sourceNa
 			uri := fmt.Sprintf("provider-docs?filter[provider-version]=%s&filter[category]=%s&page[number]=%v", providerVersionID, category, pageNumberFloat)
 			response, err := sendRegistryCall(client, "GET", uri, logger, "v2")
 			if err != nil {
-				if err.Error() == "EOF" {
-					break
-				}
 				return "", logAndReturnError(logger, "sending provider docs request", err)
 			}
 
 			var providerDocs ProviderDocs
 			if err := json.Unmarshal(response, &providerDocs); err != nil {
 				return "", logAndReturnError(logger, "unmarshalling provider docs", err)
+			}
+
+			if len(providerDocs.Data) == 0 {
+				return "", logAndReturnError(logger, "no provider docs found", fmt.Errorf("no provider docs found"))
 			}
 
 			for _, doc := range providerDocs.Data {
