@@ -91,13 +91,10 @@ func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (t
 			mcp.WithDescription("Retrieve details about deploying resources using a specific Terraform provider."),
 			mcp.WithString("sourceType", mcp.Description("The source type of the Terraform provider to retrieve")),
 			mcp.WithString("name", mcp.Required(), mcp.Description("The name of the provider to retrieve")),
-			mcp.WithString("resource", mcp.Required(), mcp.Description("The resource of the Terraform provider to retrieve")),
+			mcp.WithString("sourceName", mcp.Required(), mcp.Description("The resource of the Terraform provider to retrieve")),
 			mcp.WithString("namespace", mcp.Description("The namespace of the provider to retrieve"), mcp.DefaultString("hashicorp")),
 			mcp.WithString("version", mcp.Description("The version of the provider to retrieve"), mcp.DefaultString("latest")),
-			// TODO: Add pagination parameters here using the appropriate mcp-go mechanism
-			// Example (conceptual):
-			// mcp.WithInteger("page_number", mcp.Description("Page number"), mcp.Optional()),
-			// mcp.WithInteger("page_size", mcp.Description("Page size"), mcp.Optional()),
+			mcp.WithNumber("pageNumber", mcp.Description("Page number"), mcp.DefaultNumber(1)),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			// TODO: Parse pagination options
@@ -105,11 +102,11 @@ func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (t
 			// pageSize, _ := OptionalParam[int](request, "page_size")
 
 			name := request.Params.Arguments["name"].(string)
-			resource := request.Params.Arguments["resource"].(string)
+			sourceName := request.Params.Arguments["sourceName"].(string)
 			namespace := request.Params.Arguments["namespace"]
 			version := request.Params.Arguments["version"]
 			sourceType := request.Params.Arguments["sourceType"]
-
+			pageNumber := request.Params.Arguments["pageNumber"]
 			if ns, ok := namespace.(string); ok && ns != "" {
 				namespace = ns
 			} else {
@@ -136,13 +133,13 @@ func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (t
 			} else {
 				sourceTypeSlice = []string{"resources", "data-sources"}
 			}
-			content, err := GetProviderResourceDetails(registryClient, providerVersionID, resource, sourceTypeSlice, logger)
+			content, err := GetProviderResourceDetails(registryClient, providerVersionID, sourceName, sourceTypeSlice, pageNumber, logger)
 			if err != nil {
 				return nil, err
 			}
 
 			if content == "" {
-				content = fmt.Sprintf("Resource '%s' not found in the provider documentation", resource)
+				content = fmt.Sprintf("Resource '%s' not found in the provider documentation", sourceName)
 			}
 
 			return mcp.NewToolResultText(content), nil
