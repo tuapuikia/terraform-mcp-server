@@ -157,26 +157,31 @@ func ListModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool
 			mcp.DefaultString(""),
 			mcp.Description("The namespace of the modules to retrieve"),
 		),
+		mcp.WithNumber("currentOffset",
+			mcp.Description("Current offset for pagination"),
+			mcp.Min(0),
+			mcp.DefaultNumber(0),
+		),
 	)
 
 	listModulesHandler := func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		name := request.Params.Arguments["name"].(string)
-		namespace := request.Params.Arguments["namespace"].(string)
+		name := request.Params.Arguments["name"]
+		namespace := request.Params.Arguments["namespace"]
+		currentOffset := request.Params.Arguments["currentOffset"]
 
-		response, moduleUri, err := GetModuleDetails(registryClient, namespace, name, logger)
+		response, err := getModuleDetails(registryClient, namespace, name, currentOffset, logger)
 		if err != nil {
 			logger.Errorf("Error getting modules: %v", err)
 			return nil, err
 		}
 
 		var content *string
-		content, err = UnmarshalTFModulePlural(response)
-		if err != nil {
-			logger.Errorf("Error unmarshalling modules: %v", err)
-			return nil, err
-		}
-		if namespace == "" {
-
+		if ns, ok := namespace.(string); !ok || ns == "" {
+			content, err = UnmarshalTFModulePlural(response)
+			if err != nil {
+				logger.Errorf("Error unmarshalling modules: %v", err)
+				return nil, err
+			}
 		} else {
 			content, err = UnmarshalTFModuleSingular(response)
 			if err != nil {
@@ -185,15 +190,36 @@ func ListModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool
 			}
 		}
 
-		resourceContent := mcp.TextResourceContents{
-			MIMEType: "text/markdown",
-			URI:      moduleUri,
-			Text:     *content,
-		}
-		return mcp.NewToolResultResource(moduleUri, resourceContent), nil
+		return mcp.NewToolResultText(*content), nil
 	}
 
 	return listModulesTool, listModulesHandler
+}
+
+func getModuleDetails(providerClient *http.Client, namespace interface{}, name interface{}, currentOffset interface{}, logger *log.Logger) ([]byte, error) {
+	// Clean up the URI
+	uri := "modules"
+	if ns, ok := namespace.(string); ok && ns != "" {
+		if n, ok := name.(string); ok && n != "" {
+			uri = fmt.Sprintf("%s/%s/%s", uri, ns, n)
+		} else {
+			uri = fmt.Sprintf("%s/%s", uri, ns)
+		}
+	}
+
+	if cO, ok := currentOffset.(float64); ok {
+		uri = fmt.Sprintf("%s?offset=%v", uri, cO)
+	} else {
+		uri = fmt.Sprintf("%s?offset=%v", uri, 0)
+	}
+	response, err := sendRegistryCall(providerClient, "GET", uri, logger)
+	if err != nil {
+		logger.Errorf("Error sending request: %v", err)
+		return nil, fmt.Errorf("error sending request: %w", err)
+	}
+
+	// Return the filtered JSON as a string
+	return response, nil
 }
 
 func UnmarshalTFModulePlural(response []byte) (*string, error) {
