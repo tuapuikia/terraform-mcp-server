@@ -146,7 +146,7 @@ func ListModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool
 		}
 
 		var content *string
-		if ns, ok := namespace.(string); !ok || ns == "" {
+		if ns, ok := namespace.(string); !ok || ns != "" {
 			content, err = UnmarshalTFModulePlural(response)
 			if err != nil {
 				logger.Errorf("Error unmarshalling modules: %v", err)
