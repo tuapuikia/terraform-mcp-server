@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -134,37 +135,84 @@ func GetProviderDocs(jsonData []byte, logger *log.Logger) (ProviderDocs, error) 
 	return response, nil
 }
 
-func GetProviderResourceDetails(client *http.Client, providerVersionID, resource string, sourceTypes []string, logger *log.Logger) (string, error) {
+func GetProviderResourceDetails(client *http.Client, providerVersionID, sourceName string, sourceTypes []string, pageNumber interface{}, logger *log.Logger) (string, error) {
 	var content string
+
+	var pageNumberFloat float64
+	if num, ok := pageNumber.(float64); ok && num != 1 {
+		pageNumberFloat = num
+	} else {
+		pageNumberFloat = 1
+	}
+
 	for _, category := range sourceTypes {
-		uri := fmt.Sprintf("provider-docs?filter[provider-version]=%s&filter[category]=%s", providerVersionID, category)
-		response, err := sendRegistryCall(client, "GET", uri, logger, "v2")
-		if err != nil {
-			return "", logAndReturnError(logger, "sending provider docs request", err)
-		}
+		for {
+			uri := fmt.Sprintf("provider-docs?filter[provider-version]=%s&filter[category]=%s&page[number]=%v", providerVersionID, category, pageNumberFloat)
+			response, err := sendRegistryCall(client, "GET", uri, logger, "v2")
+			if err != nil {
+				return "", logAndReturnError(logger, "sending provider docs request", err)
+			}
 
-		var providerDocs ProviderDocs
-		if err := json.Unmarshal(response, &providerDocs); err != nil {
-			return "", logAndReturnError(logger, "unmarshalling provider docs", err)
-		}
+			var providerDocs ProviderDocs
+			if err := json.Unmarshal(response, &providerDocs); err != nil {
+				return "", logAndReturnError(logger, "unmarshalling provider docs", err)
+			}
 
-		for _, doc := range providerDocs.Data {
-			if resource == doc.Attributes.Slug {
-				uri := fmt.Sprintf("provider-docs/%s", doc.ID)
-				response, err := sendRegistryCall(client, "GET", uri, logger, "v2")
+			if len(providerDocs.Data) == 0 {
+				return "", logAndReturnError(logger, "no provider docs found", fmt.Errorf("no provider docs found"))
+			}
+
+			for _, doc := range providerDocs.Data {
+				matched, err := containsSlug(sourceName, doc.Attributes.Slug)
 				if err != nil {
-					return "", logAndReturnError(logger, "sending provider details docs request", err)
+					return "", logAndReturnError(logger, "checking slug match", err)
 				}
+				if matched {
+					uri := fmt.Sprintf("provider-docs/%s", doc.ID)
+					response, err := sendRegistryCall(client, "GET", uri, logger, "v2")
+					if err != nil {
+						return "", logAndReturnError(logger, "sending provider details docs request", err)
+					}
 
-				var providerResourceDetails ProviderResourceDetails
-				if err := json.Unmarshal(response, &providerResourceDetails); err != nil {
-					return "", logAndReturnError(logger, "unmarshalling provider resource docs", err)
+					var providerResourceDetails ProviderResourceDetails
+					if err := json.Unmarshal(response, &providerResourceDetails); err != nil {
+						return "", logAndReturnError(logger, "unmarshalling provider resource docs", err)
+					}
+					content += providerResourceDetails.Data.Attributes.Content
+					break
 				}
-				content += providerResourceDetails.Data.Attributes.Content
+			}
+			pageNumberFloat++
+			if content != "" {
+				break
 			}
 		}
 	}
 	return content, nil
+}
+
+// containsSlug checks if the sourceName string contains the slug string anywhere within it.
+// It safely handles potential regex metacharacters in the slug.
+// TODO: include a unit test for this
+func containsSlug(sourceName, slug string) (bool, error) {
+	// Use regexp.QuoteMeta to escape any special regex characters in the slug.
+	// This ensures the slug is treated as a literal string in the pattern.
+	escapedSlug := regexp.QuoteMeta(slug)
+
+	// Construct the regex pattern dynamically: ".*" + escapedSlug + ".*"
+	// This pattern means "match any characters, then the escaped slug, then any characters".
+	pattern := ".*" + escapedSlug + ".*"
+
+	// regexp.MatchString compiles and runs the regex against the sourceName.
+	// It returns true if a match is found, false otherwise.
+	// It also returns an error if the pattern is invalid (unlikely here due to QuoteMeta).
+	matched, err := regexp.MatchString(pattern, sourceName)
+	if err != nil {
+		fmt.Printf("Error compiling or matching regex pattern '%s': %v\n", pattern, err)
+		return false, err // Propagate the error
+	}
+
+	return matched, nil
 }
 
 func GetModuleDetails(providerClient *http.Client, namespace string, name string, logger *log.Logger) ([]byte, string, error) {
