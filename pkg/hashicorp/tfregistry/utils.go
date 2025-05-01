@@ -132,8 +132,21 @@ func GetProviderResourceDetails(client *http.Client, version, name, namespace, s
 	for _, doc := range providerDocs.Docs {
 		// Include the doc if sourceType was not provided/empty OR if the doc category matches the provided sourceType
 		if !sourceTypeProvided || s == "" || doc.Category == s {
-			content += fmt.Sprintf("## %s \n\n**Id:** %s \n\n**Category:** %s\n\n**Subcategory:** %s\n\n**Path:** %s\n\n",
-				doc.Title, doc.ID, doc.Category, doc.Subcategory, doc.Path)
+			if match, err := containsSlug(sourceName.(string), doc.Slug); err == nil && match && doc.Language == "hcl" {
+				response, err := sendRegistryCall(client, "GET", fmt.Sprintf("provider-docs/%s", doc.ID), logger, "v2")
+				if err != nil {
+					logger.Errorf("Error sending request for provider-docs/%s: %v", doc.ID, err)
+					continue
+				}
+				var details ProviderResourceDetails
+				if err := json.Unmarshal(response, &details); err == nil {
+					content += details.Data.Attributes.Content
+				} else {
+					logger.Errorf("Error unmarshalling provider resource details: %v", err)
+				}
+			} else if err != nil {
+				logger.Errorf("Error checking slug match: %v", err)
+			}
 		}
 	}
 	return content, nil
