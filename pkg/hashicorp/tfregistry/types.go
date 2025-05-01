@@ -103,3 +103,162 @@ type TerraformModuleVersionDetails struct {
 	Versions        []string     `json:"versions"`
 	Deprecation     any          `json:"deprecation"` // Assuming it can be null or an object
 }
+
+// ProviderLatest represents the structure of the latest provider response.
+// https://registry.terraform.io/v1/providers/hashicorp/consul/latest
+type ProviderVersionLatest struct {
+	ID          string    `json:"id"`
+	Owner       string    `json:"owner"`
+	Namespace   string    `json:"namespace"`
+	Name        string    `json:"name"`
+	Alias       string    `json:"alias"`
+	Version     string    `json:"version"`
+	Tag         string    `json:"tag"`
+	Description string    `json:"description"`
+	Source      string    `json:"source"`
+	PublishedAt time.Time `json:"published_at"`
+	Downloads   int64     `json:"downloads"`
+	Tier        string    `json:"tier"`
+	LogoURL     string    `json:"logo_url"`
+	Versions    []string  `json:"versions"`
+}
+
+// ProviderDocs represents the structure of each item in the "data" array.
+// https://registry.terraform.io/v2/provider-docs?filter[provider-version]=43126
+type ProviderDocs struct {
+	Data []struct {
+		Type       string `json:"type"`
+		ID         string `json:"id"`
+		Attributes struct {
+			Category    string `json:"category"`
+			Language    string `json:"language"`
+			Path        string `json:"path"`
+			Slug        string `json:"slug"`
+			Subcategory string `json:"subcategory"`
+			Title       string `json:"title"`
+			Truncated   bool   `json:"truncated"`
+		} `json:"attributes"`
+		Links struct {
+			Self string `json:"self"`
+		} `json:"links"`
+	} `json:"data"`
+}
+
+// ProviderList represents the structure of the provider list response.
+// https://registry.terraform.io/v2/providers?filter[tier]=official
+type ProviderList struct {
+	Data []struct {
+		Type       string `json:"type"`
+		ID         string `json:"id"`
+		Attributes struct {
+			Alias         string `json:"alias"`
+			Description   string `json:"description"`
+			Downloads     int    `json:"downloads"`
+			Featured      bool   `json:"featured"`
+			FullName      string `json:"full-name"`
+			LogoURL       string `json:"logo-url"`
+			Name          string `json:"name"`
+			Namespace     string `json:"namespace"`
+			OwnerName     string `json:"owner-name"`
+			RobotsNoindex bool   `json:"robots-noindex"`
+			Source        string `json:"source"`
+			Tier          string `json:"tier"`
+			Unlisted      bool   `json:"unlisted"`
+			Warning       string `json:"warning"`
+		} `json:"attributes"`
+		Links struct {
+			Self string `json:"self"`
+		} `json:"links"`
+	} `json:"data"`
+	Links struct {
+		First string `json:"first"`
+		Last  string `json:"last"`
+		Next  string `json:"next"`
+		Prev  any    `json:"prev"`
+	} `json:"links"`
+	Meta struct {
+		Pagination struct {
+			PageSize    int `json:"page-size"`
+			CurrentPage int `json:"current-page"`
+			NextPage    int `json:"next-page"`
+			PrevPage    any `json:"prev-page"`
+			TotalPages  int `json:"total-pages"`
+			TotalCount  int `json:"total-count"`
+		} `json:"pagination"`
+	} `json:"meta"`
+}
+
+// ProviderVersion represents the structure of the provider version response.
+// https://registry.terraform.io/v2/provider-versions/47756?include=provider-docs
+type ProviderVersionResponse struct {
+	Data struct {
+		Type       string `json:"type"`
+		ID         string `json:"id"`
+		Attributes struct {
+			Alias         string `json:"alias"`
+			Description   string `json:"description"`
+			Downloads     int    `json:"downloads"`
+			Featured      bool   `json:"featured"`
+			FullName      string `json:"full-name"`
+			LogoURL       string `json:"logo-url"`
+			Name          string `json:"name"`
+			Namespace     string `json:"namespace"`
+			OwnerName     string `json:"owner-name"`
+			RobotsNoindex bool   `json:"robots-noindex"`
+			Source        string `json:"source"`
+			Tier          string `json:"tier"`
+			Unlisted      bool   `json:"unlisted"`
+			Warning       string `json:"warning"`
+		} `json:"attributes"`
+		Relationships struct {
+			ProviderVersions struct {
+				Data []struct {
+					ID   string `json:"id"`
+					Type string `json:"type"`
+				} `json:"data"`
+				Links struct {
+					Related string `json:"related"`
+				} `json:"links"`
+			} `json:"provider-versions"`
+		} `json:"relationships"`
+		Links struct {
+			Self string `json:"self"`
+		} `json:"links"`
+	} `json:"data"`
+	Included []struct {
+		Type       string `json:"type"`
+		ID         string `json:"id"`
+		Attributes struct {
+			Description string `json:"description"`
+			Downloads   int    `json:"downloads"`
+			PublishedAt string `json:"published-at"`
+			Tag         string `json:"tag"`
+			Version     string `json:"version"`
+		} `json:"attributes"`
+		Links struct {
+			Self string `json:"self"`
+		} `json:"links"`
+	} `json:"included"`
+}
+
+// ProviderResourceDetails represents the structure of the provider resource details response.
+// https://registry.terraform.io/v2/provider-docs/8814952
+type ProviderResourceDetails struct {
+	Data struct {
+		Type       string `json:"type"`
+		ID         string `json:"id"`
+		Attributes struct {
+			Category    string `json:"category"`
+			Content     string `json:"content"`
+			Language    string `json:"language"`
+			Path        string `json:"path"`
+			Slug        string `json:"slug"`
+			Subcategory string `json:"subcategory"`
+			Title       string `json:"title"`
+			Truncated   bool   `json:"truncated"`
+		} `json:"attributes"`
+		Links struct {
+			Self string `json:"self"`
+		} `json:"links"`
+	} `json:"data"`
+}
