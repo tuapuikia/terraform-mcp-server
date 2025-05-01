@@ -133,7 +133,11 @@ func GetProviderResourceDetails(client *http.Client, version, name, namespace, s
 		// Include the doc if sourceType was not provided/empty OR if the doc category matches the provided sourceType
 		if !sourceTypeProvided || s == "" || doc.Category == s {
 			if match, err := containsSlug(sourceName.(string), doc.Slug); err == nil && match && doc.Language == "hcl" {
-				response, _ := sendRegistryCall(client, "GET", fmt.Sprintf("provider-docs/%s", doc.ID), logger, "v2")
+				response, err := sendRegistryCall(client, "GET", fmt.Sprintf("provider-docs/%s", doc.ID), logger, "v2")
+				if err != nil {
+					logger.Errorf("Error sending request for provider-docs/%s: %v", doc.ID, err)
+					continue
+				}
 				var details ProviderResourceDetails
 				if err := json.Unmarshal(response, &details); err == nil {
 					content += details.Data.Attributes.Content
