@@ -109,55 +109,41 @@ func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (t
 
 const MODULE_BASE_PATH = "registry://modules"
 
+var providerToNamespaceModule = map[string]interface{}{
+	"google":  []interface{}{"GoogleCloudPlatform", "terraform-google-modules"},
+	"aws":     []interface{}{"aws-ia", "terraform-aws-modules"},
+	"azurerm": []interface{}{"Azure", "aztfmod"},
+}
+
 func ListModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	listModulesTool := mcp.NewTool("listModules",
 		mcp.WithDescription("List Terraform modules based on name and namespace from the Terraform registry."),
-		mcp.WithString("name",
-			mcp.Description("The name of the modules to retrieve"),
-		),
-		mcp.WithString("namespace",
-			mcp.Description("The namespace of the modules to retrieve"),
+		mcp.WithString("provider",
+			mcp.Required(),
+			mcp.Description("The provider of the modules to retrieve"),
 		),
 		mcp.WithNumber("currentOffset",
 			mcp.Description("Current offset for pagination"),
 			mcp.Min(0),
 			mcp.DefaultNumber(0),
 		),
-		mcp.WithString("name",
-			mcp.DefaultString(""),
-			mcp.Description("The name of the module to retrieve"),
-		),
-		// TODO: We shouldn't need to include provider as an input, we could potentially grab the provider value from first GET and then perform a second GET with the provider value
-		mcp.WithString("provider",
-			mcp.DefaultString(""),
-			mcp.Description("The provider to retrieve"),
-		),
 	)
 
 	listModulesHandler := func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		name := request.Params.Arguments["name"]
-		namespace := request.Params.Arguments["namespace"]
+		provider := request.Params.Arguments["provider"].(string)
 		currentOffset := request.Params.Arguments["currentOffset"]
 
-		response, err := getModuleDetails(registryClient, namespace, name, currentOffset, logger)
+		response, err := getModuleDetails(registryClient, providerToNamespaceModule[provider], nil, nil, currentOffset, logger)
 		if err != nil {
 			logger.Errorf("Error getting modules: %v", err)
 			return nil, err
 		}
 
 		var content *string
-		if ns, ok := namespace.(string); !ok || ns != "" {
-			content, err = UnmarshalTFModulePlural(response)
-			if err != nil {
-				logger.Errorf("Error unmarshalling modules: %v", err)
-				return nil, err
-			}
-		} else {
-			content, err = UnmarshalTFModuleSingular(response)
-			if err != nil {
-				logger.Errorf("Error unmarshalling module: %v", err)
-				return nil, err
-			}
+		content, err = UnmarshalTFModulePlural(response)
+		if err != nil {
+			logger.Errorf("Error unmarshalling modules: %v", err)
+			return nil, err
 		}
 
 		return mcp.NewToolResultText(*content), nil
@@ -166,22 +152,58 @@ func ListModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool
 	return listModulesTool, listModulesHandler
 }
 
-func getModuleDetails(providerClient *http.Client, namespace interface{}, name interface{}, currentOffset interface{}, logger *log.Logger) ([]byte, error) {
+func ModuleDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	moduleDetailsTool := mcp.NewTool("moduleDetails",
+		mcp.WithDescription("Get information about a terraform module such as inputs, outputs, examples, etc."),
+		mcp.WithString("name",
+			mcp.Required(),
+			mcp.Description("The name of the module to retrieve"),
+		),
+		// TODO: We shouldn't need to include provider as an input, we could potentially grab the provider value from first GET and then perform a second GET with the provider value
+		mcp.WithString("provider",
+			mcp.Required(),
+			mcp.Description("The provider to retrieve"),
+		),
+	)
+
+	moduleDetailsHandler := func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		name := request.Params.Arguments["name"]
+		provider := request.Params.Arguments["provider"].(string)
+
+		response, err := getModuleDetails(registryClient, providerToNamespaceModule[provider], name, provider, nil, logger)
+		if err != nil {
+			logger.Errorf("Error getting modules: %v", err)
+			return nil, err
+		}
+
+		var content *string
+		content, err = UnmarshalTFModuleSingular(response)
+		if err != nil {
+			logger.Errorf("Error unmarshalling modules: %v", err)
+			return nil, err
+		}
+
+		return mcp.NewToolResultText(*content), nil
+	}
+
+	return moduleDetailsTool, moduleDetailsHandler
+}
+
+func getModuleDetails(providerClient *http.Client, namespace interface{}, name interface{}, provider interface{}, currentOffset interface{}, logger *log.Logger) ([]byte, error) {
 	// Clean up the URI
 	uri := "modules"
 	if ns, ok := namespace.(string); ok && ns != "" {
 		if n, ok := name.(string); ok && n != "" {
-			uri = fmt.Sprintf("%s/%s/%s", uri, ns, n)
+			uri = fmt.Sprintf("%s/%s/%s/%s", uri, ns, n, provider) // single module
 		} else {
-			uri = fmt.Sprintf("%s/%s", uri, ns)
+			uri = fmt.Sprintf("%s/%s", uri, ns) // plural module
 		}
 	}
 
 	if cO, ok := currentOffset.(float64); ok {
 		uri = fmt.Sprintf("%s?offset=%v", uri, cO)
-	} else {
-		uri = fmt.Sprintf("%s?offset=%v", uri, 0)
 	}
+
 	response, err := sendRegistryCall(providerClient, "GET", uri, logger)
 	if err != nil {
 		logger.Errorf("Error sending request: %v", err)
