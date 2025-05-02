@@ -119,7 +119,6 @@ func ListModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool
 	listModulesTool := mcp.NewTool("listModules",
 		mcp.WithDescription("List Terraform modules based on name and namespace from the Terraform registry."),
 		mcp.WithString("provider",
-			mcp.Required(),
 			mcp.Description("The provider of the modules to retrieve"),
 		),
 		mcp.WithNumber("currentOffset",
@@ -130,11 +129,25 @@ func ListModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool
 	)
 
 	listModulesHandler := func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		provider := request.Params.Arguments["provider"].(string)
+		provider := request.Params.Arguments["provider"]
 		currentOffset := request.Params.Arguments["currentOffset"]
 		var modulesData string
+		if provider == nil {
+			response, err := getModuleDetails(registryClient, nil, nil, nil, currentOffset, logger)
+			if err != nil {
+				logger.Errorf("Error getting modules: %v", err)
+				return nil, err
+			}
+			content, err := UnmarshalTFModulePlural(response)
+			if err != nil {
+				logger.Errorf("Error unmarshalling modules: %v", err)
+				return nil, err
+			}
+			modulesData += *content
+			return mcp.NewToolResultText(modulesData), nil
+		}
 
-		for _, namespace := range providerToNamespaceModule[provider].([]interface{}) {
+		for _, namespace := range providerToNamespaceModule[provider.(string)].([]interface{}) {
 			response, err := getModuleDetails(registryClient, namespace, nil, nil, currentOffset, logger)
 			if err != nil {
 				logger.Errorf("Error getting modules: %v", err)
@@ -170,9 +183,12 @@ func ModuleDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.To
 
 	moduleDetailsHandler := func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		name := request.Params.Arguments["name"]
-		provider := request.Params.Arguments["provider"].(string)
+		provider := request.Params.Arguments["provider"]
+		if _, ok := provider.(string); !ok {
+			provider = ""
+		}
 		var detailData string
-		for _, namespace := range providerToNamespaceModule[provider].([]interface{}) {
+		for _, namespace := range providerToNamespaceModule[provider.(string)].([]interface{}) {
 			response, err := getModuleDetails(registryClient, namespace, name, provider, nil, logger)
 			if err != nil {
 				logger.Errorf("Error getting modules: %v", err)

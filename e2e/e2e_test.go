@@ -112,7 +112,6 @@ func TestE2E(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		// When we call the "get_me" tool
 		request := mcp.CallToolRequest{}
 		request.Params.Name = "listModules"
 		request.Params.Arguments = map[string]interface{}{
