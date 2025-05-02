@@ -132,21 +132,23 @@ func ListModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool
 	listModulesHandler := func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		provider := request.Params.Arguments["provider"].(string)
 		currentOffset := request.Params.Arguments["currentOffset"]
+		var modulesData string
 
-		response, err := getModuleDetails(registryClient, providerToNamespaceModule[provider], nil, nil, currentOffset, logger)
-		if err != nil {
-			logger.Errorf("Error getting modules: %v", err)
-			return nil, err
+		for _, namespace := range providerToNamespaceModule[provider].([]interface{}) {
+			response, err := getModuleDetails(registryClient, namespace, nil, nil, currentOffset, logger)
+			if err != nil {
+				logger.Errorf("Error getting modules: %v", err)
+				return nil, err
+			}
+
+			content, err := UnmarshalTFModulePlural(response)
+			if err != nil {
+				logger.Errorf("Error unmarshalling modules: %v", err)
+				return nil, err
+			}
+			modulesData += *content
 		}
-
-		var content *string
-		content, err = UnmarshalTFModulePlural(response)
-		if err != nil {
-			logger.Errorf("Error unmarshalling modules: %v", err)
-			return nil, err
-		}
-
-		return mcp.NewToolResultText(*content), nil
+		return mcp.NewToolResultText(modulesData), nil
 	}
 
 	return listModulesTool, listModulesHandler
@@ -162,28 +164,30 @@ func ModuleDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.To
 		// TODO: We shouldn't need to include provider as an input, we could potentially grab the provider value from first GET and then perform a second GET with the provider value
 		mcp.WithString("provider",
 			mcp.Required(),
-			mcp.Description("The provider to retrieve"),
+			mcp.Description("The provider to retrieve that will then be used to acquire the correct namespaces"),
 		),
 	)
 
 	moduleDetailsHandler := func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		name := request.Params.Arguments["name"]
 		provider := request.Params.Arguments["provider"].(string)
+		var detailData string
+		for _, namespace := range providerToNamespaceModule[provider].([]interface{}) {
+			response, err := getModuleDetails(registryClient, namespace, name, provider, nil, logger)
+			if err != nil {
+				logger.Errorf("Error getting modules: %v", err)
+				return nil, err
+			}
 
-		response, err := getModuleDetails(registryClient, providerToNamespaceModule[provider], name, provider, nil, logger)
-		if err != nil {
-			logger.Errorf("Error getting modules: %v", err)
-			return nil, err
+			content, err := UnmarshalTFModuleSingular(response)
+			if err != nil {
+				logger.Errorf("Error unmarshalling modules: %v", err)
+				return nil, err
+			}
+			detailData += *content
 		}
 
-		var content *string
-		content, err = UnmarshalTFModuleSingular(response)
-		if err != nil {
-			logger.Errorf("Error unmarshalling modules: %v", err)
-			return nil, err
-		}
-
-		return mcp.NewToolResultText(*content), nil
+		return mcp.NewToolResultText(detailData), nil
 	}
 
 	return moduleDetailsTool, moduleDetailsHandler
