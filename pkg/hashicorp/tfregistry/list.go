@@ -113,6 +113,8 @@ var providerToNamespaceModule = map[string]interface{}{
 	"google":  []interface{}{"GoogleCloudPlatform", "terraform-google-modules"},
 	"aws":     []interface{}{"aws-ia", "terraform-aws-modules"},
 	"azurerm": []interface{}{"Azure", "aztfmod"},
+	"oracle":  []interface{}{"oracle", "oracle-terraform-modules"},
+	"alibaba": []interface{}{"alibaba", "terraform-alicloud-modules"},
 }
 
 func ListModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
