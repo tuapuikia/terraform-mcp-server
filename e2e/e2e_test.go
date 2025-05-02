@@ -93,8 +93,6 @@ func TestE2E(t *testing.T) {
 		request := mcp.CallToolRequest{}
 		request.Params.Name = "listModules"
 		request.Params.Arguments = map[string]interface{}{
-			"name":          "",
-			"namespace":     "",
 			"currentOffset": 0,
 		}
 		response, err := client.CallTool(ctx, request)
@@ -118,8 +116,6 @@ func TestE2E(t *testing.T) {
 		request := mcp.CallToolRequest{}
 		request.Params.Name = "listModules"
 		request.Params.Arguments = map[string]interface{}{
-			"name":          "",
-			"namespace":     "",
 			"currentOffset": 0,
 		}
 		response, err := client.CallTool(ctx, request)
