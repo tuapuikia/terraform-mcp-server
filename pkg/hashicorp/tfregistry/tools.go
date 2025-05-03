@@ -13,4 +13,5 @@ func InitTools(hcServer *server.MCPServer, registryClient *http.Client, logger *
 	hcServer.AddTool(ProviderDetails(registryClient, logger))
 	hcServer.AddTool(providerResourceDetails(registryClient, logger))
 	hcServer.AddTool(ListModules(registryClient, logger))
+	hcServer.AddTool(ModuleDetails(registryClient, logger))
 }

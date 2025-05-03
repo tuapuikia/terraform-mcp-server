@@ -93,8 +93,6 @@ func TestE2E(t *testing.T) {
 		request := mcp.CallToolRequest{}
 		request.Params.Name = "listModules"
 		request.Params.Arguments = map[string]interface{}{
-			"name":          "",
-			"namespace":     "",
 			"currentOffset": 0,
 		}
 		response, err := client.CallTool(ctx, request)
@@ -114,12 +112,9 @@ func TestE2E(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		// When we call the "get_me" tool
 		request := mcp.CallToolRequest{}
 		request.Params.Name = "listModules"
 		request.Params.Arguments = map[string]interface{}{
-			"name":          "",
-			"namespace":     "",
 			"currentOffset": 0,
 		}
 		response, err := client.CallTool(ctx, request)
@@ -149,6 +144,30 @@ func TestE2E(t *testing.T) {
 
 		t.Logf("Raw response content: %s", textResourceContents.Type)
 		require.Equal(t, "text", textResourceContents.Type, "expected modules to match")
+	})
+
+	t.Run("CallTool moduleDetails", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		// When we call the "get_me" tool
+		request := mcp.CallToolRequest{}
+		request.Params.Name = "moduleDetails"
+		request.Params.Arguments = map[string]interface{}{
+			"name":     "vpc",
+			"provider": "aws",
+		}
+		response, err := client.CallTool(ctx, request)
+		require.NoError(t, err, "expected to call 'listModules' tool successfully")
+
+		require.False(t, response.IsError, "expected result not to be an error")
+		require.Len(t, response.Content, 1, "expected content to have one item")
+
+		textResourceContents, ok := response.Content[0].(mcp.TextContent)
+		require.True(t, ok, "expected content to be of type TextResourceContents")
+
+		t.Logf("Raw response content: %s", textResourceContents.Type)
+		require.Equal(t, "text", textResourceContents.Type, "expected typs to match")
 	})
 }
 
