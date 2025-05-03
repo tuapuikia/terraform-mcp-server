@@ -16,31 +16,36 @@ import (
 // ProviderDetails creates a tool to get provider details from registry.
 func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("providerDetails",
-			mcp.WithDescription("Get information about a terraform provider such as guides, examples, resources, data sources, etc."),
-			mcp.WithString("name", mcp.Required(), mcp.Description("The name of the provider to retrieve")),
-			mcp.WithString("namespace", mcp.Description("The namespace of the provider to retrieve")),
-			mcp.WithString("version", mcp.Description("The version of the provider to retrieve")),
-			mcp.WithString("sourceType", mcp.Description("The source type of the Terraform provider to retrieve, can be 'resources' or 'data-sources'")),
+			mcp.WithDescription(`This tool helps users deploy services on cloud, on-premise and SaaS application environments by retrieving a specific Terraform provider. 
+			It helps users understand everything that can be provisioned and managed using the Terraform provider by listing out its resources (write operations), data sources (read operations), and functions (utility operations). 
+			For each item, note the existence and path of its documentation.
+			`),
+			mcp.WithString("providerName", mcp.Required(), mcp.Description("The name of the Terraform provider to perform the read or deployment operation.")),
+			mcp.WithString("providerNamespace", mcp.Required(), mcp.Description("The publisher of the Terraform provider, typically the name of the company or organization that created the provider.")),
+			mcp.WithString("providerVersion", mcp.Description("The version of the Terraform provider to retrieve in the format 'x.y.z', or 'latest' to get the latest version.")),
+			mcp.WithString("providerDataType", mcp.Description("The source type of the Terraform provider to retrieve, can be 'resources' or 'data-sources'."),
+				mcp.Enum("resources", "data-sources")), // TODO: Limitation due to the v1 API, we need to implement v2
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			name := request.Params.Arguments["name"].(string)
-			namespace := request.Params.Arguments["namespace"]
-			version := request.Params.Arguments["version"]
-			sourceType := request.Params.Arguments["sourceType"]
+			providerName := request.Params.Arguments["providerName"].(string)
+			providerNamespace := request.Params.Arguments["providerNamespace"]
+			providerVersion := request.Params.Arguments["providerVersion"]
+			providerDataType := request.Params.Arguments["providerDataType"]
 
-			if ns, ok := namespace.(string); ok && ns != "" {
-				namespace = ns
+			// Try to get the provider version using the namespace given by the AI client
+			if v, ok := providerVersion.(string); ok && v != "" && v != "latest" {
+				providerVersion = v
 			} else {
-				namespace = "hashicorp"
+				providerVersion = GetLatestProviderVersion(registryClient, providerNamespace, providerName, logger)
 			}
 
-			if v, ok := version.(string); ok && v != "" && v != "latest" {
-				version = v
-			} else {
-				version = GetLatestProviderVersion(registryClient, namespace, name, logger)
+			// If the provider version doesn't exist, try the hashicorp namespace
+			if providerVersion == "" {
+				providerNamespace = "hashicorp"
+				providerVersion = GetLatestProviderVersion(registryClient, providerNamespace, providerName, logger)
 			}
 
-			uri := fmt.Sprintf("providers/%s/%s/%s", namespace, name, version)
+			uri := fmt.Sprintf("providers/%s/%s/%s", providerNamespace, providerName, providerVersion)
 			response, err := sendRegistryCall(registryClient, "GET", uri, logger)
 			if err != nil {
 				return nil, logAndReturnError(logger, "getting provider details", err)
@@ -51,12 +56,12 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 				return nil, logAndReturnError(logger, "unmarshalling provider docs", err)
 			}
 
-			content := fmt.Sprintf("# %s provider docs\n\n", name)
-			s, sourceTypeProvided := sourceType.(string) // Get the sourceType and check if it was provided
-
+			content := fmt.Sprintf("# %s provider docs\n\n", providerName)
+			// Get the sourceType and check if it was provided
+			providerDataTypeValue, providerDataTypeProvided := providerDataType.(string)
 			for _, doc := range providerDocs.Docs {
 				// Include the doc if sourceType was not provided/empty OR if the doc category matches the provided sourceType
-				if !sourceTypeProvided || s == "" || doc.Category == s {
+				if !providerDataTypeProvided || providerDataTypeValue == "" || doc.Category == providerDataTypeValue {
 					if doc.Language == "hcl" {
 						content += fmt.Sprintf("## %s \n\n**Id:** %s \n\n**Category:** %s\n\n**Subcategory:** %s\n\n**Path:** %s\n\n",
 							doc.Title, doc.ID, doc.Category, doc.Subcategory, doc.Path)
@@ -69,38 +74,40 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 
 func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("providerResourceDetails",
-			mcp.WithDescription("Retrieve details about deploying resources using a specific Terraform provider."),
-			mcp.WithString("sourceType", mcp.Description("The source type of the Terraform provider to retrieve, resource or data-source")),
-			mcp.WithString("name", mcp.Required(), mcp.Description("The name of the provider to retrieve")),
-			mcp.WithString("sourceName", mcp.Required(), mcp.Description("The resource of the Terraform provider to retrieve")),
-			mcp.WithString("namespace", mcp.Description("The namespace of the provider to retrieve")),
-			mcp.WithString("version", mcp.Description("The version of the provider to retrieve")),
+			mcp.WithDescription(`This tool is used to obtain the documentation, schema, and code examples from a given Terraform provider version, which will guide you in deploying a specific service on cloud, on-premise, and SaaS application environments. 
+			Please specify the provider name, namespace, and the service name you wish to provision to utilize this tool.`),
+			mcp.WithString("providerName", mcp.Required(), mcp.Description("The name of the Terraform provider to perform the read or deployment operation.")),
+			mcp.WithString("providerNamespace", mcp.Required(), mcp.Description("The publisher of the Terraform provider, typically the name of the company or organization that created the provider.")),
+			mcp.WithString("providerVersion", mcp.Description("The version of the Terraform provider to retrieve in the format 'x.y.z', or 'latest' to get the latest version.")),
+			mcp.WithString("providerDataType", mcp.Description("The source type of the Terraform provider to retrieve, can be 'resources' or 'data-sources'."),
+				mcp.Enum("resources", "data-sources")),
+			mcp.WithString("serviceName", mcp.Required(), mcp.Description("The name of the service or resource for read or deployment operations.")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			name := request.Params.Arguments["name"].(string)
-			sourceName := request.Params.Arguments["sourceName"].(string)
-			namespace := request.Params.Arguments["namespace"]
-			version := request.Params.Arguments["version"]
-			sourceType := request.Params.Arguments["sourceType"]
-			if ns, ok := namespace.(string); ok && ns != "" {
-				namespace = ns
+			providerName := request.Params.Arguments["providerName"].(string)
+			providerNamespace := request.Params.Arguments["providerNamespace"]
+			providerVersion := request.Params.Arguments["providerVersion"]
+			providerDataType := request.Params.Arguments["providerDataType"]
+			serviceName := request.Params.Arguments["serviceName"].(string)
+			if ns, ok := providerNamespace.(string); ok && ns != "" {
+				providerNamespace = ns
 			} else {
-				namespace = "hashicorp"
+				providerNamespace = "hashicorp"
 			}
 
-			if v, ok := version.(string); ok && v != "" && v != "latest" {
-				version = v
+			if v, ok := providerVersion.(string); ok && v != "" && v != "latest" {
+				providerVersion = v
 			} else {
-				version = GetLatestProviderVersion(registryClient, namespace, name, logger)
+				providerVersion = GetLatestProviderVersion(registryClient, providerNamespace, providerName, logger)
 			}
 
-			content, err := GetProviderResourceDetails(registryClient, version, name, namespace, sourceName, sourceType, logger)
+			content, err := GetProviderResourceDetails(registryClient, providerVersion, providerName, providerNamespace, serviceName, providerDataType, logger)
 			if err != nil {
 				return nil, err
 			}
 
 			if content == "" {
-				content = fmt.Sprintf("Resource '%s' not found in the provider documentation", sourceName)
+				content = fmt.Sprintf("Resource '%s' not found in the provider documentation", serviceName)
 			}
 
 			return mcp.NewToolResultText(content), nil
@@ -118,97 +125,91 @@ var providerToNamespaceModule = map[string]interface{}{
 }
 
 func ListModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	listModulesTool := mcp.NewTool("listModules",
-		mcp.WithDescription("List Terraform modules based on name and namespace from the Terraform registry."),
-		mcp.WithString("provider",
-			mcp.Description("The provider of the modules to retrieve"),
-		),
-		mcp.WithNumber("currentOffset",
-			mcp.Description("Current offset for pagination"),
-			mcp.Min(0),
-			mcp.DefaultNumber(0),
-		),
-	)
+	return mcp.NewTool("listModules",
+			mcp.WithDescription(`This tool helps users deploy complex services on cloud and on-premise environments by retrieving a list of Terraform modules.
+			Please specify the provider name to utilize this tool. You can also use this tool without specifying a provider to get a list of all available modules.`),
+			mcp.WithString("moduleProvider",
+				mcp.Description("The name of the provider for the Terraform module to use."),
+			),
+			mcp.WithNumber("currentOffset",
+				mcp.Description("Current offset for pagination"),
+				mcp.Min(0),
+				mcp.DefaultNumber(0),
+			),
+		), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			moduleProvider := request.Params.Arguments["moduleProvider"]
+			currentOffset := request.Params.Arguments["currentOffset"]
+			var modulesData string
+			if moduleProvider == nil {
+				response, err := getModuleDetails(registryClient, nil, nil, nil, currentOffset, logger)
+				if err != nil {
+					logger.Errorf("Error getting modules: %v", err)
+					return nil, err
+				}
+				content, err := UnmarshalTFModulePlural(response)
+				if err != nil {
+					logger.Errorf("Error unmarshalling modules: %v", err)
+					return nil, err
+				}
+				modulesData += *content
+				return mcp.NewToolResultText(modulesData), nil
+			}
 
-	listModulesHandler := func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		provider := request.Params.Arguments["provider"]
-		currentOffset := request.Params.Arguments["currentOffset"]
-		var modulesData string
-		if provider == nil {
-			response, err := getModuleDetails(registryClient, nil, nil, nil, currentOffset, logger)
-			if err != nil {
-				logger.Errorf("Error getting modules: %v", err)
-				return nil, err
+			for _, namespace := range providerToNamespaceModule[moduleProvider.(string)].([]interface{}) {
+				response, err := getModuleDetails(registryClient, namespace, nil, nil, currentOffset, logger)
+				if err != nil {
+					logger.Errorf("Error listing modules: %v", err)
+					return nil, err
+				}
+
+				content, err := UnmarshalTFModulePlural(response)
+				if err != nil {
+					logger.Errorf("Error unmarshalling modules list: %v", err)
+					return nil, err
+				}
+				modulesData += *content
 			}
-			content, err := UnmarshalTFModulePlural(response)
-			if err != nil {
-				logger.Errorf("Error unmarshalling modules: %v", err)
-				return nil, err
-			}
-			modulesData += *content
 			return mcp.NewToolResultText(modulesData), nil
 		}
-
-		for _, namespace := range providerToNamespaceModule[provider.(string)].([]interface{}) {
-			response, err := getModuleDetails(registryClient, namespace, nil, nil, currentOffset, logger)
-			if err != nil {
-				logger.Errorf("Error getting modules: %v", err)
-				return nil, err
-			}
-
-			content, err := UnmarshalTFModulePlural(response)
-			if err != nil {
-				logger.Errorf("Error unmarshalling modules: %v", err)
-				return nil, err
-			}
-			modulesData += *content
-		}
-		return mcp.NewToolResultText(modulesData), nil
-	}
-
-	return listModulesTool, listModulesHandler
 }
 
 func ModuleDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	moduleDetailsTool := mcp.NewTool("moduleDetails",
-		mcp.WithDescription("Get information about a terraform module such as inputs, outputs, examples, etc."),
-		mcp.WithString("name",
-			mcp.Required(),
-			mcp.Description("The name of the module to retrieve"),
-		),
-		// TODO: We shouldn't need to include provider as an input, we could potentially grab the provider value from first GET and then perform a second GET with the provider value
-		mcp.WithString("provider",
-			mcp.Required(),
-			mcp.Description("The provider to retrieve that will then be used to acquire the correct namespaces"),
-		),
-	)
+	return mcp.NewTool("moduleDetails",
+			mcp.WithDescription(`This tool provides comprehensive details about a Terraform module, including inputs, outputs, and examples, enabling users to understand its effective usage. 
+		To use it, please specify the module name and its associated provider.`),
+			mcp.WithString("name",
+				mcp.Required(),
+				mcp.Description("The name of the module to to access its detailed information."),
+			),
+			// TODO: We shouldn't need to include provider as an input, we could potentially grab the provider value from first GET and then perform a second GET with the provider value
+			mcp.WithString("provider",
+				mcp.Required(),
+				mcp.Description("The provider associated with the module, used to determine the correct namespace or the publisher of the module."),
+			),
+		), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			name := request.Params.Arguments["name"]
+			provider := request.Params.Arguments["provider"]
+			if _, ok := provider.(string); !ok {
+				provider = ""
+			}
+			var detailData string
+			for _, namespace := range providerToNamespaceModule[provider.(string)].([]interface{}) {
+				response, err := getModuleDetails(registryClient, namespace, name, provider, nil, logger)
+				if err != nil {
+					logger.Errorf("Error getting module details: %v", err)
+					return nil, err
+				}
 
-	moduleDetailsHandler := func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		name := request.Params.Arguments["name"]
-		provider := request.Params.Arguments["provider"]
-		if _, ok := provider.(string); !ok {
-			provider = ""
-		}
-		var detailData string
-		for _, namespace := range providerToNamespaceModule[provider.(string)].([]interface{}) {
-			response, err := getModuleDetails(registryClient, namespace, name, provider, nil, logger)
-			if err != nil {
-				logger.Errorf("Error getting modules: %v", err)
-				return nil, err
+				content, err := UnmarshalTFModuleSingular(response)
+				if err != nil {
+					logger.Errorf("Error unmarshalling module details: %v", err)
+					return nil, err
+				}
+				detailData += *content
 			}
 
-			content, err := UnmarshalTFModuleSingular(response)
-			if err != nil {
-				logger.Errorf("Error unmarshalling modules: %v", err)
-				return nil, err
-			}
-			detailData += *content
+			return mcp.NewToolResultText(detailData), nil
 		}
-
-		return mcp.NewToolResultText(detailData), nil
-	}
-
-	return moduleDetailsTool, moduleDetailsHandler
 }
 
 func getModuleDetails(providerClient *http.Client, namespace interface{}, name interface{}, provider interface{}, currentOffset interface{}, logger *log.Logger) ([]byte, error) {

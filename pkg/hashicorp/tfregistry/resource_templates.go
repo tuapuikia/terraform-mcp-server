@@ -27,7 +27,7 @@ func ProviderResourceTemplate(registryClient *http.Client, resourceURI string, d
 			// mcp.WithInteger("page_size", mcp.Description("Page size"), mcp.Optional()),
 		),
 		func(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
-			providerVersionID, providerVersionUri, err := GetProviderDetails(registryClient, request.Params.URI, request.Params.Arguments["version"].(string), logger)
+			providerVersionID, providerVersionUri, err := GetProviderDetails(registryClient, request.Params.URI, logger)
 			logger.Debugf("Provider resource template - providerVersionID: %s, providerVersionUri: %s", providerVersionID, providerVersionUri)
 			if err != nil {
 				return nil, logAndReturnError(logger, "getting provider details", err)

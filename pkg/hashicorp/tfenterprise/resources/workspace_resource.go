@@ -4,17 +4,16 @@ import (
 	"context"
 	"errors"
 
-	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/hashicorp/go-tfe"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
 // GetTerraformWorkspaceResourceContent defines the resource template and handler for getting workspace content.
-func GetTerraformWorkspaceResourceContent(tfeClient *tfe.Client, t translations.TranslationHelperFunc) (mcp.ResourceTemplate, server.ResourceTemplateHandlerFunc) {
+func GetTerraformWorkspaceResourceContent(tfeClient *tfe.Client) (mcp.ResourceTemplate, server.ResourceTemplateHandlerFunc) {
 	return mcp.NewResourceTemplate(
 			"workspace://{organization}/{workspace}/contents{/path*}", // Resource template
-			t("RESOURCE_WORKSPACE_CONTENT_DESCRIPTION", "Workspace Content"),
+			"Workspace Content",
 		),
 		WorkspaceResourceContentsHandler(tfeClient)
 }

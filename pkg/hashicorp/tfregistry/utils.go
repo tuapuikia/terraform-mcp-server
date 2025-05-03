@@ -11,15 +11,17 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func GetProviderDetails(providerClient *http.Client, uri string, version interface{}, logger *log.Logger) (string, string, error) {
+const PROVIDER_BASE_PATH = "registry://provider"
+
+func GetProviderDetails(providerClient *http.Client, uri string, logger *log.Logger) (string, string, error) {
 	// Clean up the URI
 	namespace, name, version := ExtractProviderNameAndVersion(uri)
 	logger.Debugf("Extracted namespace: %s, name: %s, version: %s", namespace, name, version)
 
-	if version == "" || version == "latest" {
+	if version == "" || version == "latest" || !isValidProviderVersionFormat(version) {
 		version = GetLatestProviderVersion(providerClient, namespace, name, logger)
 	}
-	providerVersionUri := fmt.Sprintf("registry://provider/%s/name/%s/version/%s", namespace, name, version)
+	providerVersionUri := fmt.Sprintf("%s/%s/name/%s/version/%s", PROVIDER_BASE_PATH, namespace, name, version)
 
 	// Get the provider versions
 	uri = fmt.Sprintf("providers/%s/%s/%s", namespace, name, version)
@@ -29,7 +31,7 @@ func GetProviderDetails(providerClient *http.Client, uri string, version interfa
 		return "", providerVersionUri, fmt.Errorf("error sending request: %w", err)
 	}
 	// Get the provider version-id
-	providerVersionID, err := GetProviderVersionID(response, version.(string))
+	providerVersionID, err := GetProviderVersionID(response, version)
 	if err != nil {
 		logger.Errorf("Error getting provider version ID: %v", err)
 		return "", providerVersionUri, fmt.Errorf("error getting provider version ID: %w", err)
@@ -61,17 +63,17 @@ func GetProviderList(providerClient *http.Client, providerType string, logger *l
 }
 
 func ExtractProviderNameAndVersion(uri string) (string, string, string) {
-	uri = strings.TrimPrefix(uri, "registry://provider/")
+	uri = strings.TrimPrefix(uri, fmt.Sprintf("%s/", PROVIDER_BASE_PATH))
 	parts := strings.Split(uri, "/")
 	return parts[0], parts[2], parts[4]
 }
 
 func ConstructProviderVersionURI(providerNamespace interface{}, providerName string, providerVersion interface{}) string {
-	return fmt.Sprintf("registry://provider/%s/providers/%s/versions/%s", providerNamespace, providerName, providerVersion)
+	return fmt.Sprintf("%s/%s/providers/%s/versions/%s", PROVIDER_BASE_PATH, providerNamespace, providerName, providerVersion)
 }
 
-func GetLatestProviderVersion(providerClient *http.Client, namespace, name interface{}, logger *log.Logger) string {
-	uri := fmt.Sprintf("providers/%s/%s", namespace, name)
+func GetLatestProviderVersion(providerClient *http.Client, providerNamespace, providerName interface{}, logger *log.Logger) string {
+	uri := fmt.Sprintf("providers/%s/%s", providerNamespace, providerName)
 	jsonData, err := sendRegistryCall(providerClient, "GET", uri, logger, "v1")
 	if err != nil {
 		logError(logger, "latest provider version API request", err)
@@ -112,10 +114,10 @@ func GetProviderVersionID(jsonData []byte, targetVersion string) (string, error)
 	return "", fmt.Errorf("provider version '%s' not found", targetVersion) // Return an error if not found.
 }
 
-func GetProviderResourceDetails(client *http.Client, version, name, namespace, sourceName, sourceType interface{}, logger *log.Logger) (string, error) {
+func GetProviderResourceDetails(client *http.Client, version, providerName, providerNamespace, serviceName, providerDataType interface{}, logger *log.Logger) (string, error) {
 	var content string
 
-	uri := fmt.Sprintf("providers/%s/%s/%s", namespace, name, version)
+	uri := fmt.Sprintf("providers/%s/%s/%s", providerNamespace, providerName, version)
 	response, err := sendRegistryCall(client, "GET", uri, logger)
 	if err != nil {
 		return "", logAndReturnError(logger, "getting provider details", err)
@@ -126,13 +128,18 @@ func GetProviderResourceDetails(client *http.Client, version, name, namespace, s
 		return "", logAndReturnError(logger, "unmarshalling provider docs", err)
 	}
 
-	content = fmt.Sprintf("# %s provider docs\n\n", name)
-	s, sourceTypeProvided := sourceType.(string) // Get the sourceType and check if it was provided
+	content = fmt.Sprintf("# %s provider docs\n\n", providerName)
+
+	// Get the sourceType and check if it was provided, force it to be "resources" if any other value fails
+	sourceTypeValue, sourceTypeProvided := providerDataType.(string)
+	if !sourceTypeProvided || sourceTypeValue == "" || (sourceTypeValue != "resources" && sourceTypeValue != "data-sources" && sourceTypeValue != "provider-guides") {
+		sourceTypeValue = "resources"
+	}
 
 	for _, doc := range providerDocs.Docs {
-		// Include the doc if sourceType was not provided/empty OR if the doc category matches the provided sourceType
-		if !sourceTypeProvided || s == "" || doc.Category == s {
-			if match, err := containsSlug(sourceName.(string), doc.Slug); err == nil && match && doc.Language == "hcl" {
+		// Include the doc to only provide info from the sourceType (enum - "resource", "data-source", "provider-guides")
+		if doc.Category == sourceTypeValue {
+			if match, err := containsSlug(serviceName.(string), doc.Slug); err == nil && match && doc.Language == "hcl" {
 				response, err := sendRegistryCall(client, "GET", fmt.Sprintf("provider-docs/%s", doc.ID), logger, "v2")
 				if err != nil {
 					logger.Errorf("Error sending request for provider-docs/%s: %v", doc.ID, err)
@@ -195,6 +202,14 @@ func GetModuleDetails(providerClient *http.Client, namespace string, name string
 	return response, moduleUri, nil
 }
 
+// isValidProviderVersionFormat checks if the provider version format is valid.
+func isValidProviderVersionFormat(version string) bool {
+	// Example regex for semantic versioning (e.g., "1.0.0", "1.0.0-beta").
+	semverRegex := `^v?(\d+\.\d+\.\d+(-[a-zA-Z0-9]+)?)$`
+	matched, _ := regexp.MatchString(semverRegex, version)
+	return matched
+}
+
 func sendRegistryCall(client *http.Client, method string, uri string, logger *log.Logger, callOptions ...string) ([]byte, error) {
 	version := "v1"
 	if len(callOptions) > 0 {
@@ -221,7 +236,8 @@ func sendRegistryCall(client *http.Client, method string, uri string, logger *lo
 	if err != nil {
 		return nil, err
 	}
-	logger.Debugf("Response body: %s", string(body))
+	logger.Debugf("Response status: %s", resp.Status)
+	logger.Tracef("Response body: %s", string(body))
 	return body, nil
 }
 
