@@ -32,17 +32,25 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 			providerVersion := request.Params.Arguments["providerVersion"]
 			providerDataType := request.Params.Arguments["providerDataType"]
 
+			var err error
 			// Try to get the provider version using the namespace given by the AI client
 			if v, ok := providerVersion.(string); ok && v != "" && v != "latest" {
 				providerVersion = v
 			} else {
-				providerVersion = GetLatestProviderVersion(registryClient, providerNamespace, providerName, logger)
+				providerVersion, err = GetLatestProviderVersion(registryClient, providerNamespace, providerName, logger)
+				if err != nil {
+					providerVersion = ""
+					logger.Debugf("Error getting latest provider version in %s namespace: %v", providerNamespace, err)
+				}
 			}
 
 			// If the provider version doesn't exist, try the hashicorp namespace
 			if providerVersion == "" {
 				providerNamespace = "hashicorp"
-				providerVersion = GetLatestProviderVersion(registryClient, providerNamespace, providerName, logger)
+				providerVersion, err = GetLatestProviderVersion(registryClient, providerNamespace, providerName, logger)
+				if err != nil {
+					return nil, logAndReturnError(logger, fmt.Sprintf("Error getting latest provider version in %s namespace", providerNamespace), err)
+				}
 			}
 
 			uri := fmt.Sprintf("providers/%s/%s/%s", providerNamespace, providerName, providerVersion)
@@ -95,10 +103,14 @@ func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (t
 				providerNamespace = "hashicorp"
 			}
 
+			var err error
 			if v, ok := providerVersion.(string); ok && v != "" && v != "latest" {
 				providerVersion = v
 			} else {
-				providerVersion = GetLatestProviderVersion(registryClient, providerNamespace, providerName, logger)
+				providerVersion, err = GetLatestProviderVersion(registryClient, providerNamespace, providerName, logger)
+				if err != nil {
+					return nil, logAndReturnError(logger, fmt.Sprintf("Error getting latest provider version in %s namespace", providerNamespace), err)
+				}
 			}
 
 			content, err := GetProviderResourceDetails(registryClient, providerVersion, providerName, providerNamespace, serviceName, providerDataType, logger)

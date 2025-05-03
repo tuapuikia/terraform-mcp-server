@@ -197,16 +197,15 @@ type ProviderList struct {
 	} `json:"meta"`
 }
 
-// ProviderVersion represents the structure of the provider version response.
-// https://registry.terraform.io/v2/provider-versions/47756?include=provider-docs
-type ProviderVersionResponse struct {
+// ProviderVersion represents structure with list of provider versions.
+type ProviderVersionList struct {
 	Data struct {
 		Type       string `json:"type"`
 		ID         string `json:"id"`
 		Attributes struct {
 			Alias         string `json:"alias"`
 			Description   string `json:"description"`
-			Downloads     int    `json:"downloads"`
+			Downloads     int64  `json:"downloads"`
 			Featured      bool   `json:"featured"`
 			FullName      string `json:"full-name"`
 			LogoURL       string `json:"logo-url"`
@@ -238,11 +237,54 @@ type ProviderVersionResponse struct {
 		Type       string `json:"type"`
 		ID         string `json:"id"`
 		Attributes struct {
-			Description string `json:"description"`
-			Downloads   int    `json:"downloads"`
-			PublishedAt string `json:"published-at"`
-			Tag         string `json:"tag"`
-			Version     string `json:"version"`
+			Description string    `json:"description"`
+			Downloads   int       `json:"downloads"`
+			PublishedAt time.Time `json:"published-at"`
+			Tag         string    `json:"tag"`
+			Version     string    `json:"version"`
+		} `json:"attributes"`
+		Links struct {
+			Self string `json:"self"`
+		} `json:"links"`
+	} `json:"included"`
+}
+
+// ProviderVersion represents the structure of the provider version response.
+// https://registry.terraform.io/v2/provider-versions/47756?include=provider-docs
+type ProviderVersionResponse struct {
+	Data struct {
+		Type       string `json:"type"`
+		ID         string `json:"id"`
+		Attributes struct {
+			Description string    `json:"description"`
+			Downloads   int       `json:"downloads"`
+			PublishedAt time.Time `json:"published-at"`
+			Tag         string    `json:"tag"`
+			Version     string    `json:"version"`
+		} `json:"attributes"`
+		Relationships struct {
+			ProviderDocs struct {
+				Data []struct {
+					ID   string `json:"id"`
+					Type string `json:"type"`
+				} `json:"data"`
+			} `json:"provider-docs"`
+		} `json:"relationships"`
+		Links struct {
+			Self string `json:"self"`
+		} `json:"links"`
+	} `json:"data"`
+	Included []struct {
+		Type       string `json:"type"`
+		ID         string `json:"id"`
+		Attributes struct {
+			Category    string `json:"category"`
+			Language    string `json:"language"`
+			Path        string `json:"path"`
+			Slug        string `json:"slug"`
+			Subcategory string `json:"subcategory"`
+			Title       string `json:"title"`
+			Truncated   bool   `json:"truncated"`
 		} `json:"attributes"`
 		Links struct {
 			Self string `json:"self"`
@@ -263,6 +305,27 @@ type ProviderResourceDetails struct {
 			Path        string `json:"path"`
 			Slug        string `json:"slug"`
 			Subcategory string `json:"subcategory"`
+			Title       string `json:"title"`
+			Truncated   bool   `json:"truncated"`
+		} `json:"attributes"`
+		Links struct {
+			Self string `json:"self"`
+		} `json:"links"`
+	} `json:"data"`
+}
+
+// ProviderOverview represents the structure of the provider overview (how to use it) response.
+// https://registry.terraform.io/v2/provider-docs?filter[provider-version]=70800&filter[category]=overview&filter[slug]=index
+type ProviderOverview struct {
+	Data []struct {
+		Type       string `json:"type"`
+		ID         string `json:"id"`
+		Attributes struct {
+			Category    string `json:"category"`
+			Language    string `json:"language"`
+			Path        string `json:"path"`
+			Slug        string `json:"slug"`
+			Subcategory any    `json:"subcategory"`
 			Title       string `json:"title"`
 			Truncated   bool   `json:"truncated"`
 		} `json:"attributes"`

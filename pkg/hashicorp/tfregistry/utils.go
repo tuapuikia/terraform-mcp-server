@@ -11,55 +11,123 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const PROVIDER_BASE_PATH = "registry://provider"
+const PROVIDER_BASE_PATH = "registry://providers"
 
-func GetProviderDetails(providerClient *http.Client, uri string, logger *log.Logger) (string, string, error) {
-	// Clean up the URI
-	namespace, name, version := ExtractProviderNameAndVersion(uri)
-	logger.Debugf("Extracted namespace: %s, name: %s, version: %s", namespace, name, version)
-
-	if version == "" || version == "latest" || !isValidProviderVersionFormat(version) {
-		version = GetLatestProviderVersion(providerClient, namespace, name, logger)
-	}
-	providerVersionUri := fmt.Sprintf("%s/%s/name/%s/version/%s", PROVIDER_BASE_PATH, namespace, name, version)
-
-	// Get the provider versions
-	uri = fmt.Sprintf("providers/%s/%s/%s", namespace, name, version)
-	response, err := sendRegistryCall(providerClient, "GET", uri, logger)
-	if err != nil {
-		logger.Errorf("Error sending request: %v", err)
-		return "", providerVersionUri, fmt.Errorf("error sending request: %w", err)
-	}
-	// Get the provider version-id
-	providerVersionID, err := GetProviderVersionID(response, version)
-	if err != nil {
-		logger.Errorf("Error getting provider version ID: %v", err)
-		return "", providerVersionUri, fmt.Errorf("error getting provider version ID: %w", err)
-	}
-
-	// Return the filtered JSON as a string
-	return providerVersionID, providerVersionUri, nil
-}
-
-func GetProviderList(providerClient *http.Client, providerType string, logger *log.Logger) []string {
+func GetProviderList(providerClient *http.Client, providerType string, logger *log.Logger) ([]map[string]string, error) {
 	uri := fmt.Sprintf("providers?filter[tier]=%s", providerType)
 	jsonData, err := sendRegistryCall(providerClient, "GET", uri, logger, "v2")
 	if err != nil {
 		logError(logger, fmt.Sprintf("%s provider API request", providerType), err)
-		return []string{}
+		return nil, err
 	}
 
 	var providerListJson ProviderList
 	if err := json.Unmarshal(jsonData, &providerListJson); err != nil {
 		logError(logger, fmt.Sprintf("%s providers request unmarshalling", providerType), err)
-		return []string{}
+		return nil, err
 	}
 
-	providerList := make([]string, len(providerListJson.Data))
+	providerDetails := make([]map[string]string, len(providerListJson.Data))
+
 	for i, provider := range providerListJson.Data {
-		providerList[i] = provider.Attributes.Name
+		providerDetails[i] = map[string]string{
+			"name":        provider.Attributes.Name,
+			"namespace":   provider.Attributes.Namespace,
+			"description": provider.Attributes.Namespace,
+			"downloads":   provider.Attributes.Namespace,
+		}
 	}
-	return providerList
+	return providerDetails, nil
+}
+
+// Every provider version has a unique ID, which is used to identify the provider version in the registry and its specific documentation
+// https://registry.terraform.io/v2/providers/hashicorp/aws?include=provider-versions
+func GetProviderVersionID(registryClient *http.Client, namespace string, name string, version string, logger *log.Logger) (string, error) {
+	uri := fmt.Sprintf("providers/%s/%s?include=provider-versions", namespace, name)
+	response, err := sendRegistryCall(registryClient, "GET", uri, logger, "v2")
+	if err != nil {
+		logError(logger, "provider version ID request", err)
+		return "", err
+	}
+	var providerVersionList ProviderVersionList
+	if err := json.Unmarshal(response, &providerVersionList); err != nil {
+		logError(logger, "provider version ID request unmarshalling", err)
+		return "", err
+	}
+	for _, providerVersion := range providerVersionList.Included {
+		if providerVersion.Attributes.Version == version {
+			return providerVersion.ID, nil
+		}
+	}
+	return "", fmt.Errorf("provider version %s not found", version)
+}
+
+func GetProviderOverviewDocs(registryClient *http.Client, providerVersionID string, logger *log.Logger) (string, error) {
+	// https://registry.terraform.io/v2/provider-docs?filter[provider-version]=21818&filter[category]=overview&filter[slug]=index
+	uri := fmt.Sprintf("provider-docs?filter[provider-version]=%s&filter[category]=overview&filter[slug]=index", providerVersionID)
+	response, err := sendRegistryCall(registryClient, "GET", uri, logger, "v2")
+	if err != nil {
+		return "", logAndReturnError(logger, "getting provider docs overview", err)
+	}
+	var providerOverview ProviderOverview
+	if err := json.Unmarshal(response, &providerOverview); err != nil {
+		logError(logger, "getting provider docs request unmarshalling", err)
+		return "", err
+	}
+
+	resourceContent := ""
+	for _, providerOverviewPage := range providerOverview.Data {
+		resourceContentNew, err := GetProviderResouceDocs(registryClient, providerOverviewPage.ID, logger)
+		resourceContent += resourceContentNew
+		if err != nil {
+			logError(logger, "getting provider resource docs looping", err)
+			return "", err
+		}
+	}
+
+	return resourceContent, nil
+}
+
+func GetProviderDocs(registryClient *http.Client, providerVersionID string, logger *log.Logger) (string, error) {
+	// https://registry.terraform.io/v2/provider-versions/70800?include=provider-docs&filter[language]=hcl
+	// TODO: Implement the logic to filter ?filter[category]=resources
+	uri := fmt.Sprintf("provider-versions/%s?include=provider-docs&filter[language]=hcl", providerVersionID)
+	response, err := sendRegistryCall(registryClient, "GET", uri, logger, "v2")
+	if err != nil {
+		return "", logAndReturnError(logger, "Error getting provider docs", err)
+	}
+	var providerVersionResponse ProviderVersionResponse
+	if err := json.Unmarshal(response, &providerVersionResponse); err != nil {
+		logError(logger, "Error getting provider docs request unmarshalling", err)
+		return "", err
+	}
+	content := fmt.Sprintf("# Provider: %s\n", providerVersionResponse.Data.Attributes.Description)
+	content += fmt.Sprintf("## Total downloads for provider version %s: %d\n\n", providerVersionResponse.Data.Attributes.Version, providerVersionResponse.Data.Attributes.Downloads)
+
+	for _, providerDetails := range providerVersionResponse.Included {
+		resourceContent, err := GetProviderResouceDocs(registryClient, providerDetails.ID, logger)
+		if err != nil {
+			logError(logger, "Error getting provider resource docs", err)
+			return "", err
+		}
+		content += fmt.Sprintf("%s \n\n", resourceContent)
+	}
+	return content, fmt.Errorf("provider version %s not found", providerVersionID)
+}
+
+func GetProviderResouceDocs(registryClient *http.Client, providerDocsID string, logger *log.Logger) (string, error) {
+	// https://registry.terraform.io/v2/provider-docs/8862001
+	uri := fmt.Sprintf("provider-docs/%s", providerDocsID)
+	response, err := sendRegistryCall(registryClient, "GET", uri, logger, "v2")
+	if err != nil {
+		return "", logAndReturnError(logger, "Error getting provider resource docs ", err)
+	}
+	var providerServiceDetails ProviderResourceDetails
+	if err := json.Unmarshal(response, &providerServiceDetails); err != nil {
+		logError(logger, "Error unmarshalling provider service details", err)
+		return "", logAndReturnError(logger, "Error unmarshalling provider resource docs", err)
+	}
+	return providerServiceDetails.Data.Attributes.Content, nil
 }
 
 func ExtractProviderNameAndVersion(uri string) (string, string, string) {
@@ -72,46 +140,27 @@ func ConstructProviderVersionURI(providerNamespace interface{}, providerName str
 	return fmt.Sprintf("%s/%s/providers/%s/versions/%s", PROVIDER_BASE_PATH, providerNamespace, providerName, providerVersion)
 }
 
-func GetLatestProviderVersion(providerClient *http.Client, providerNamespace, providerName interface{}, logger *log.Logger) string {
+func GetLatestProviderVersion(providerClient *http.Client, providerNamespace, providerName interface{}, logger *log.Logger) (string, error) {
 	uri := fmt.Sprintf("providers/%s/%s", providerNamespace, providerName)
 	jsonData, err := sendRegistryCall(providerClient, "GET", uri, logger, "v1")
 	if err != nil {
 		logError(logger, "latest provider version API request", err)
-		return ""
+		return "", err
 	}
 
 	var providerVersionLatest ProviderVersionLatest
 	if err := json.Unmarshal(jsonData, &providerVersionLatest); err != nil {
 		logError(logger, "provider versions request unmarshalling", err)
-		return ""
+		return "", err
 	}
 
 	logger.Debugf("Fetched latest provider version: %s", providerVersionLatest.Version)
 
-	return providerVersionLatest.Version
+	return providerVersionLatest.Version, nil
 }
 
 func logError(logger *log.Logger, context string, err error) {
 	logger.Errorf("Error in %s: %v", context, err)
-}
-
-// Function to extract the provider version ID.
-func GetProviderVersionID(jsonData []byte, targetVersion string) (string, error) {
-	// Unmarshal the JSON data into the struct.
-	var response ProviderVersionResponse
-	err := json.Unmarshal(jsonData, &response)
-	if err != nil {
-		return "", fmt.Errorf("error unmarshalling JSON: %w", err)
-	}
-
-	// Iterate through the "included" array to find the matching version.
-	for _, included := range response.Included {
-		if included.Type == "provider-versions" && included.Attributes.Version == targetVersion {
-			return included.ID, nil // Return the ID if version matches.
-		}
-	}
-
-	return "", fmt.Errorf("provider version '%s' not found", targetVersion) // Return an error if not found.
 }
 
 func GetProviderResourceDetails(client *http.Client, version, providerName, providerNamespace, serviceName, providerDataType interface{}, logger *log.Logger) (string, error) {
