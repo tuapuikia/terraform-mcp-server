@@ -66,9 +66,9 @@ func TestE2E(t *testing.T) {
 		request := mcp.CallToolRequest{}
 		request.Params.Name = "providerDetails"
 		request.Params.Arguments = map[string]interface{}{
-			"name":      "aws",
-			"namespace": "hashicorp",
-			"version":   "latest",
+			"providerName":      "aws",
+			"providerNamespace": "hashicorp",
+			"providerVersion":   "latest",
 		}
 
 		response, err := client.CallTool(ctx, request)
@@ -154,8 +154,8 @@ func TestE2E(t *testing.T) {
 		request := mcp.CallToolRequest{}
 		request.Params.Name = "moduleDetails"
 		request.Params.Arguments = map[string]interface{}{
-			"name":     "vpc",
-			"provider": "aws",
+			"moduleName":     "vpc",
+			"moduleProvider": "aws",
 		}
 		response, err := client.CallTool(ctx, request)
 		require.NoError(t, err, "expected to call 'listModules' tool successfully")

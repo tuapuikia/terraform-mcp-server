@@ -189,24 +189,24 @@ func ModuleDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.To
 	return mcp.NewTool("moduleDetails",
 			mcp.WithDescription(`This tool provides comprehensive details about a Terraform module, including inputs, outputs, and examples, enabling users to understand its effective usage. 
 		To use it, please specify the module name and its associated provider.`),
-			mcp.WithString("name",
+			mcp.WithString("moduleName",
 				mcp.Required(),
 				mcp.Description("The name of the module to to access its detailed information."),
 			),
 			// TODO: We shouldn't need to include provider as an input, we could potentially grab the provider value from first GET and then perform a second GET with the provider value
-			mcp.WithString("provider",
+			mcp.WithString("moduleProvider",
 				mcp.Required(),
 				mcp.Description("The provider associated with the module, used to determine the correct namespace or the publisher of the module."),
 			),
 		), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			name := request.Params.Arguments["name"]
-			provider := request.Params.Arguments["provider"]
-			if _, ok := provider.(string); !ok {
-				provider = ""
+			moduleName := request.Params.Arguments["moduleName"]
+			moduleProvider := request.Params.Arguments["moduleProvider"]
+			if _, ok := moduleProvider.(string); !ok {
+				moduleProvider = ""
 			}
 			var detailData string
-			for _, namespace := range providerToNamespaceModule[provider.(string)].([]interface{}) {
-				response, err := getModuleDetails(registryClient, namespace, name, provider, nil, logger)
+			for _, moduleNamespace := range providerToNamespaceModule[moduleProvider.(string)].([]interface{}) {
+				response, err := getModuleDetails(registryClient, moduleNamespace, moduleName, moduleProvider, nil, logger)
 				if err != nil {
 					logger.Errorf("Error getting module details: %v", err)
 					return nil, err
