@@ -1,60 +1,94 @@
 package e2e
 
-var providerDetailsTestCases = []map[string]interface{}{
-	// Testing with empty payload
-	{},
-	// Testing without provider version and namespace
+type ProviderTestCase struct {
+	TestShouldFail  bool                   `json:"testShouldFail"`
+	TestDescription string                 `json:"testDescription"`
+	TestPayload     map[string]interface{} `json:"testPayload,omitempty"`
+}
+
+var providerDetailsTestCases = []ProviderTestCase{
 	{
-		"providerName": "aws",
+		TestShouldFail:  true,
+		TestDescription: "Testing with empty payload",
+		TestPayload:     map[string]interface{}{},
 	},
-	// Testing without provider version
 	{
-		"providerName":      "azurerm",
-		"providerNamespace": "hashicorp",
+		TestShouldFail:  true,
+		TestDescription: "Testing without provider version and namespace",
+		TestPayload:     map[string]interface{}{"ProviderName": "aws"},
 	},
-	// Testing without provider namespace, but owned by hashicorp
 	{
-		"providerName":    "google",
-		"providerVersion": "latest",
+		TestShouldFail:  false,
+		TestDescription: "Testing without provider version",
+		TestPayload: map[string]interface{}{
+			"providerName":      "azurerm",
+			"providerNamespace": "hashicorp",
+		},
 	},
-	// Testing without provider namespace, but not-owned by hashicorp
 	{
-		"providerName":    "snowflake",
-		"providerVersion": "latest",
+		TestShouldFail:  false,
+		TestDescription: "Testing without provider namespace, but owned by hashicorp",
+		TestPayload: map[string]interface{}{
+			"providerName":    "google",
+			"providerVersion": "latest",
+		},
 	},
-	// Testing only with required values
 	{
-		"providerName":      "aws",
-		"providerNamespace": "hashicorp",
-		"providerVersion":   "latest",
+		TestShouldFail:  false,
+		TestDescription: "Testing without provider namespace, but not-owned by hashicorp",
+		TestPayload: map[string]interface{}{
+			"providerName":    "snowflake",
+			"providerVersion": "latest",
+		},
 	},
-	// Testing data-sources with all values for hashicorp namespace
 	{
-		"providerName":      "vault",
-		"providerNamespace": "hashicorp",
-		"providerVersion":   "latest",
-		"providerDataType":  "resources",
+		TestShouldFail:  false,
+		TestDescription: "Testing only with required values",
+		TestPayload: map[string]interface{}{
+			"providerName":      "aws",
+			"providerNamespace": "hashicorp",
+			"providerVersion":   "latest",
+		},
 	},
-	// Testing data-sources with all values for non-hashicorp namespace
 	{
-		"providerName":      "terracurl",
-		"providerNamespace": "devops-rob",
-		"providerVersion":   "latest",
-		"providerDataType":  "data-sources",
+		TestShouldFail:  false,
+		TestDescription: "Testing data-sources with all values for hashicorp namespace",
+		TestPayload: map[string]interface{}{
+			"providerName":      "vault",
+			"providerNamespace": "hashicorp",
+			"providerVersion":   "latest",
+			"providerDataType":  "resources",
+		},
 	},
-	// Testing payload with malformed namespace
 	{
-		"providerName":      "vault",
-		"providerNamespace": "hashicorp-malformed",
-		"providerVersion":   "latest",
-		"providerDataType":  "resources",
+		TestShouldFail:  false,
+		TestDescription: "Testing data-sources with all values for non-hashicorp namespace",
+		TestPayload: map[string]interface{}{
+			"providerName":      "terracurl",
+			"providerNamespace": "devops-rob",
+			"providerVersion":   "latest",
+			"providerDataType":  "data-sources",
+		},
 	},
-	// Testing payload with malformed name
 	{
-		"providerName":      "vaults",
-		"providerNamespace": "hashicorp",
-		"providerVersion":   "latest",
-		"providerDataType":  "resources",
+		TestShouldFail:  false,
+		TestDescription: "Testing payload with malformed namespace",
+		TestPayload: map[string]interface{}{
+			"providerName":      "vault",
+			"providerNamespace": "hashicorp-malformed",
+			"providerVersion":   "latest",
+			"providerDataType":  "resources",
+		},
+	},
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing payload with malformed name",
+		TestPayload: map[string]interface{}{
+			"providerName":      "vaults",
+			"providerNamespace": "hashicorp",
+			"providerVersion":   "latest",
+			"providerDataType":  "resources",
+		},
 	},
 }
 

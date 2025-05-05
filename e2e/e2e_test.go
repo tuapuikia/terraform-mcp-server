@@ -59,25 +59,32 @@ func TestE2E(t *testing.T) {
 
 	for _, testCase := range providerDetailsTestCases {
 		t.Run("CallTool providerDetails", func(t *testing.T) {
+			t.Parallel()
+			t.Log(testCase.TestDescription)
+
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
 			// When we call the "get_me" tool
 			request := mcp.CallToolRequest{}
 			request.Params.Name = "providerDetails"
-			request.Params.Arguments = testCase
+			request.Params.Arguments = testCase.TestPayload
 
 			response, err := client.CallTool(ctx, request)
-			require.NoError(t, err, "expected to call 'providerDetails' tool successfully")
+			if testCase.TestShouldFail {
+				require.Error(t, err, "expected to call 'providerDetails' tool with error")
+				require.True(t, response.IsError, "expected result to be an error")
+			} else {
+				require.NoError(t, err, "expected to call 'providerDetails' tool successfully")
+				require.False(t, response.IsError, "expected result not to be an error")
+				require.Len(t, response.Content, 1, "expected content to have one item")
 
-			require.False(t, response.IsError, "expected result not to be an error")
-			require.Len(t, response.Content, 1, "expected content to have one item")
+				textContent, ok := response.Content[0].(mcp.TextContent)
+				require.True(t, ok, "expected content to be of type TextContent")
 
-			textContent, ok := response.Content[0].(mcp.TextContent)
-			require.True(t, ok, "expected content to be of type TextContent")
-
-			// TODO: Need to fix this: it is static and should be updated to test with the actual API response.
-			require.Greater(t, len(textContent.Text), 100, "expected content length to be greater than 100")
+				// TODO: Need to fix this: it is static and should be updated to test with the actual API response.
+				require.Greater(t, len(textContent.Text), 100, "expected content length to be greater than 100")
+			}
 		})
 	}
 
