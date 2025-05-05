@@ -2,7 +2,6 @@ package tfregistry
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -12,7 +11,7 @@ import (
 )
 
 func RegisterResourceTemplates(hcServer *server.MCPServer, registryClient *http.Client, logger *log.Logger) {
-	hcServer.AddResourceTemplate(ProviderResourceTemplate(registryClient, "registry://provider/{namespace}/name/{name}/version/{version}", "Provider details", logger))
+	hcServer.AddResourceTemplate(ProviderResourceTemplate(registryClient, fmt.Sprintf("%s/{namespace}/name/{name}/version/{version}", PROVIDER_BASE_PATH), "Provider details", logger))
 }
 
 func ProviderResourceTemplate(registryClient *http.Client, resourceURI string, description string, logger *log.Logger) (mcp.ResourceTemplate, server.ResourceTemplateHandlerFunc) {
@@ -27,38 +26,52 @@ func ProviderResourceTemplate(registryClient *http.Client, resourceURI string, d
 			// mcp.WithInteger("page_size", mcp.Description("Page size"), mcp.Optional()),
 		),
 		func(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
-			providerVersionID, providerVersionUri, err := GetProviderDetails(registryClient, request.Params.URI, request.Params.Arguments["version"].(string), logger)
-			logger.Debugf("Provider resource template - providerVersionID: %s, providerVersionUri: %s", providerVersionID, providerVersionUri)
+			logger.Debugf("Provider resource template - resourceURI: %s", request.Params.URI)
+			providerDocs, err := ProviderResourceTemplateHandler(registryClient, request.Params.URI, logger)
 			if err != nil {
-				return nil, logAndReturnError(logger, "getting provider details", err)
+				return nil, logAndReturnError(logger, "Provider Resource: error getting provider details", err)
 			}
-
-			// Filter docs by provider version
-			uri := fmt.Sprintf("provider-docs?filter[provider-version]=%s", providerVersionID)
-			response, err := sendRegistryCall(registryClient, "GET", uri, logger, "v2")
-			if err != nil {
-				return nil, logAndReturnError(logger, "sending provider docs request", err)
+			resourceContents := make([]mcp.ResourceContents, 1)
+			resourceContents[0] = mcp.TextResourceContents{
+				MIMEType: "text/markdown",
+				URI:      resourceURI,
+				Text:     providerDocs,
 			}
-
-			return buildResourceContents(response, providerVersionUri, logger)
+			return resourceContents, err
 		}
 }
 
-func buildResourceContents(response []byte, baseUri string, logger *log.Logger) ([]mcp.ResourceContents, error) {
-	var providerDocs ProviderDocs
-	if err := json.Unmarshal(response, &providerDocs); err != nil {
-		return nil, logAndReturnError(logger, "unmarshalling provider docs", err)
-	}
+func ProviderResourceTemplateHandler(registryClient *http.Client, resourceURI string, logger *log.Logger) (string, error) {
+	namespace, name, version := ExtractProviderNameAndVersion(resourceURI)
+	logger.Debugf("Extracted namespace: %s, name: %s, version: %s", namespace, name, version)
 
-	resourceContents := make([]mcp.ResourceContents, len(providerDocs.Docs))
-	for i, doc := range providerDocs.Docs {
-		content := fmt.Sprintf("## %s \n\n**Id:** %s \n\n**Category:** %s\n\n**Subcategory:** %s\n\n**Path:** %s\n\n",
-			doc.Title, doc.ID, doc.Category, doc.Subcategory, doc.Path)
-		resourceContents[i] = mcp.TextResourceContents{
-			MIMEType: "text/markdown",
-			URI:      fmt.Sprintf("%s/%s", baseUri, doc.ID),
-			Text:     content,
+	var err error
+	if version == "" || version == "latest" || !isValidProviderVersionFormat(version) {
+		version, err = GetLatestProviderVersion(registryClient, namespace, name, logger)
+		if err != nil {
+			return "", logAndReturnError(logger, fmt.Sprintf("Provider Resource: error getting %s/%s latest provider version", namespace, name), err)
 		}
 	}
-	return resourceContents, nil
+	providerVersionUri := fmt.Sprintf("%s/%s/name/%s/version/%s", PROVIDER_BASE_PATH, namespace, name, version)
+	logger.Debugf("Provider resource template - providerVersionUri: %s", providerVersionUri)
+	if err != nil {
+		return "", logAndReturnError(logger, "Provider Resource: error getting provider details", err)
+	}
+
+	// Get the provider-version-id for the specified provider version
+	providerVersionID, err := GetProviderVersionID(registryClient, namespace, name, version, logger)
+	logger.Debugf("Provider resource template - Provider version id providerVersionID: %s, providerVersionUri: %s", providerVersionID, providerVersionUri)
+	if err != nil {
+		return "", logAndReturnError(logger, "getting provider details", err)
+	}
+
+	// Get all the docs based on provider version id
+	providerDocs, err := GetProviderOverviewDocs(registryClient, providerVersionID, logger)
+	logger.Debugf("Provider resource template - Provider docs providerVersionID: %s", providerVersionID)
+	if err != nil {
+		return "", logAndReturnError(logger, "getting provider details", err)
+	}
+
+	// Only return the provider overview
+	return providerDocs, nil
 }
