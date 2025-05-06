@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: MPL-2.0
+
 ARG VERSION="dev"
 
 FROM golang:1.24.2 AS build
