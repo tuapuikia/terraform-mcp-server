@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/mark3labs/mcp-go/mcp"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -166,10 +167,10 @@ func logError(logger *log.Logger, context string, err error) {
 	logger.Errorf("Error in %s: %v", context, err)
 }
 
-func GetProviderResourceDetails(client *http.Client, version, providerName, providerNamespace, serviceName, providerDataType interface{}, logger *log.Logger) (string, error) {
+func GetProviderResourceDetails(client *http.Client, providerDetail ProviderDetail, serviceName string, logger *log.Logger) (string, error) {
 	var content string
 
-	uri := fmt.Sprintf("providers/%s/%s/%s", providerNamespace, providerName, version)
+	uri := fmt.Sprintf("providers/%s/%s/%s", providerDetail.ProviderNamespace, providerDetail.ProviderName, providerDetail.ProviderVersion)
 	response, err := sendRegistryCall(client, "GET", uri, logger)
 	if err != nil {
 		return "", logAndReturnError(logger, "getting provider details", err)
@@ -180,18 +181,13 @@ func GetProviderResourceDetails(client *http.Client, version, providerName, prov
 		return "", logAndReturnError(logger, "unmarshalling provider docs", err)
 	}
 
-	content = fmt.Sprintf("# %s provider docs\n\n", providerName)
-
-	// Get the sourceType and check if it was provided, force it to be "resources" if any other value fails
-	sourceTypeValue, sourceTypeProvided := providerDataType.(string)
-	if !sourceTypeProvided || sourceTypeValue == "" || (sourceTypeValue != "resources" && sourceTypeValue != "data-sources" && sourceTypeValue != "provider-guides") {
-		sourceTypeValue = "resources"
-	}
-
+	content = fmt.Sprintf("# %s provider docs\n\n", providerDetail.ProviderName)
 	for _, doc := range providerDocs.Docs {
-		// Include the doc to only provide info from the sourceType (enum - "resource", "data-source", "provider-guides")
-		if doc.Category == sourceTypeValue {
-			if match, err := containsSlug(serviceName.(string), doc.Slug); err == nil && match && doc.Language == "hcl" {
+		// restrictData determines whether the data should be restricted based on the provider data type.
+		// It evaluates to true if providerDataType is not empty and does not match the doc's category.
+		restrictData := providerDetail.ProviderDataType != "" && providerDetail.ProviderDataType != doc.Category
+		if !restrictData {
+			if match, err := containsSlug(serviceName, doc.Slug); err == nil && match && doc.Language == "hcl" {
 				response, err := sendRegistryCall(client, "GET", fmt.Sprintf("provider-docs/%s", doc.ID), logger, "v2")
 				if err != nil {
 					logger.Errorf("Error sending request for provider-docs/%s: %v", doc.ID, err)
@@ -262,6 +258,65 @@ func isValidProviderVersionFormat(version string) bool {
 	return matched
 }
 
+func isValidProviderDataType(providerDataType string) bool {
+	return providerDataType == "resources" || providerDataType == "data-sources" || providerDataType == "provider-guides"
+}
+
+func resolveProviderDetails(request mcp.CallToolRequest, registryClient *http.Client, defaultErrorGuide string, logger *log.Logger) (ProviderDetail, error) {
+	providerDetail := ProviderDetail{}
+	providerName, ok := request.Params.Arguments["providerName"].(string)
+	if !ok || providerName == "" {
+		return providerDetail, fmt.Errorf("providerName is required and must be a string")
+	}
+
+	providerNamespace, ok := request.Params.Arguments["providerNamespace"].(string)
+	if !ok || providerNamespace == "" {
+		logger.Debugf(`Error getting latest provider version in "%s" namespace, trying the hashicorp namespace`, providerNamespace)
+		providerNamespace = "hashicorp"
+	}
+
+	providerVersion := request.Params.Arguments["providerVersion"]
+	providerDataType := request.Params.Arguments["providerDataType"]
+
+	var err error
+	providerVersionValue := ""
+	if v, ok := providerVersion.(string); ok && isValidProviderVersionFormat(v) {
+		providerVersionValue = v
+	} else {
+		providerVersionValue, err = GetLatestProviderVersion(registryClient, providerNamespace, providerName, logger)
+		if err != nil {
+			providerVersionValue = ""
+			logger.Debugf("Error getting latest provider version in %s namespace: %v", providerNamespace, err)
+		}
+	}
+
+	// If the provider version doesn't exist, try the hashicorp namespace
+	if providerVersionValue == "" {
+		tryProviderNamespace := "hashicorp"
+		providerVersionValue, err = GetLatestProviderVersion(registryClient, tryProviderNamespace, providerName, logger)
+		if err != nil {
+			// Just so we don't print the same namespace twice if they are the same
+			if providerNamespace != tryProviderNamespace {
+				tryProviderNamespace = fmt.Sprintf(`"%s" or the "%s"`, providerNamespace, tryProviderNamespace)
+			}
+			errMessage := fmt.Sprintf(`Error getting the "%s" provider, with version "%s" in the %s namespace, %s`, providerName, providerVersion, tryProviderNamespace, defaultErrorGuide)
+			return providerDetail, logAndReturnError(logger, errMessage, fmt.Errorf("%s", errMessage))
+		}
+		providerNamespace = tryProviderNamespace // Update the namespace to hashicorp, if successful
+	}
+
+	providerDataTypeValue := ""
+	if pdt, ok := providerDataType.(string); ok && isValidProviderDataType(pdt) {
+		providerDataTypeValue = pdt
+	}
+
+	providerDetail.ProviderName = providerName
+	providerDetail.ProviderNamespace = providerNamespace
+	providerDetail.ProviderVersion = providerVersionValue
+	providerDetail.ProviderDataType = providerDataTypeValue
+	return providerDetail, nil
+}
+
 func sendRegistryCall(client *http.Client, method string, uri string, logger *log.Logger, callOptions ...string) ([]byte, error) {
 	version := "v1"
 	if len(callOptions) > 0 {
@@ -280,6 +335,10 @@ func sendRegistryCall(client *http.Client, method string, uri string, logger *lo
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("error: %s", "404 Not Found")
 	}
 
 	defer resp.Body.Close()

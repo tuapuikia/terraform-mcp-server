@@ -56,7 +56,6 @@ var (
 		Run: func(_ *cobra.Command, _ []string) {
 			logFile := viper.GetString("log-file")
 			readOnly := viper.GetBool("read-only")
-			exportTranslations := viper.GetBool("export-translations")
 			logger, err := initLogger(logFile)
 			if err != nil {
 				stdlog.Fatal("Failed to initialize logger:", err)
@@ -66,11 +65,10 @@ var (
 
 			logCommands := viper.GetBool("enable-command-logging")
 			cfg := runConfig{
-				readOnly:           readOnly,
-				logger:             logger,
-				logCommands:        logCommands,
-				exportTranslations: exportTranslations,
-				enabledToolsets:    enabledToolsets,
+				readOnly:        readOnly,
+				logger:          logger,
+				logCommands:     logCommands,
+				enabledToolsets: enabledToolsets,
 			}
 			if err := runStdioServer(cfg); err != nil {
 				stdlog.Fatal("failed to run stdio server:", err)
@@ -126,11 +124,10 @@ func initLogger(outPath string) (*log.Logger, error) {
 }
 
 type runConfig struct {
-	readOnly           bool
-	logger             *log.Logger
-	logCommands        bool
-	exportTranslations bool
-	enabledToolsets    []string
+	readOnly        bool
+	logger          *log.Logger
+	logCommands     bool
+	enabledToolsets []string
 }
 
 func runStdioServer(cfg runConfig) error {

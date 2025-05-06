@@ -21,39 +21,21 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 			For each item, note the existence and path of its documentation.
 			`),
 			mcp.WithString("providerName", mcp.Required(), mcp.Description("The name of the Terraform provider to perform the read or deployment operation.")),
-			mcp.WithString("providerNamespace", mcp.Required(), mcp.Description("The publisher of the Terraform provider, typically the name of the company or organization that created the provider.")),
+			mcp.WithString("providerNamespace", mcp.Required(), mcp.Description("The publisher of the Terraform provider, typically the name of the company, or their GitHub organization name that created the provider.")),
 			mcp.WithString("providerVersion", mcp.Description("The version of the Terraform provider to retrieve in the format 'x.y.z', or 'latest' to get the latest version.")),
 			mcp.WithString("providerDataType", mcp.Description("The source type of the Terraform provider to retrieve, can be 'resources' or 'data-sources'."),
 				mcp.Enum("resources", "data-sources")), // TODO: Limitation due to the v1 API, we need to implement v2
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			providerName := request.Params.Arguments["providerName"].(string)
-			providerNamespace := request.Params.Arguments["providerNamespace"]
-			providerVersion := request.Params.Arguments["providerVersion"]
-			providerDataType := request.Params.Arguments["providerDataType"]
 
-			var err error
-			// Try to get the provider version using the namespace given by the AI client
-			if v, ok := providerVersion.(string); ok && v != "" && v != "latest" {
-				providerVersion = v
-			} else {
-				providerVersion, err = GetLatestProviderVersion(registryClient, providerNamespace, providerName, logger)
-				if err != nil {
-					providerVersion = ""
-					logger.Debugf("Error getting latest provider version in %s namespace: %v", providerNamespace, err)
-				}
+			// For typical provider and namespace hallucinations
+			defaultErrorGuide := "please check the provider name or the namespace, perhaps the provider is published under a different namespace or company name"
+			providerDetail, err := resolveProviderDetails(request, registryClient, defaultErrorGuide, logger)
+			if err != nil {
+				return nil, err
 			}
 
-			// If the provider version doesn't exist, try the hashicorp namespace
-			if providerVersion == "" {
-				providerNamespace = "hashicorp"
-				providerVersion, err = GetLatestProviderVersion(registryClient, providerNamespace, providerName, logger)
-				if err != nil {
-					return nil, logAndReturnError(logger, fmt.Sprintf("Error getting latest provider version in %s namespace", providerNamespace), err)
-				}
-			}
-
-			uri := fmt.Sprintf("providers/%s/%s/%s", providerNamespace, providerName, providerVersion)
+			uri := fmt.Sprintf("providers/%s/%s/%s", providerDetail.ProviderNamespace, providerDetail.ProviderName, providerDetail.ProviderVersion)
 			response, err := sendRegistryCall(registryClient, "GET", uri, logger)
 			if err != nil {
 				return nil, logAndReturnError(logger, "getting provider details", err)
@@ -64,17 +46,25 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 				return nil, logAndReturnError(logger, "unmarshalling provider docs", err)
 			}
 
-			content := fmt.Sprintf("# %s provider docs\n\n", providerName)
-			// Get the sourceType and check if it was provided
-			providerDataTypeValue, providerDataTypeProvided := providerDataType.(string)
+			content := fmt.Sprintf("# %s provider docs\n\n", providerDetail.ProviderName)
+			contentAvailable := false
 			for _, doc := range providerDocs.Docs {
-				// Include the doc if sourceType was not provided/empty OR if the doc category matches the provided sourceType
-				if !providerDataTypeProvided || providerDataTypeValue == "" || doc.Category == providerDataTypeValue {
+				// restrictData determines whether the data should be restricted based on the provider data type.
+				// It evaluates to true if providerDataType is not empty and does not match the doc's category.
+				restrictData := providerDetail.ProviderDataType != "" && providerDetail.ProviderDataType != doc.Category
+				if !restrictData {
 					if doc.Language == "hcl" {
+						contentAvailable = true
 						content += fmt.Sprintf("## %s \n\n**Id:** %s \n\n**Category:** %s\n\n**Subcategory:** %s\n\n**Path:** %s\n\n",
 							doc.Title, doc.ID, doc.Category, doc.Subcategory, doc.Path)
 					}
 				}
+			}
+
+			// Check if the content data is not fulfilled
+			if !contentAvailable {
+				errMessage := fmt.Sprintf(`No documentation found for provider '%s' in the '%s' namespace, %s`, providerDetail.ProviderName, providerDetail.ProviderNamespace, defaultErrorGuide)
+				return nil, logAndReturnError(logger, errMessage, err)
 			}
 			return mcp.NewToolResultText(content), nil
 		}
@@ -85,35 +75,27 @@ func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (t
 			mcp.WithDescription(`This tool is used to obtain the documentation, schema, and code examples from a given Terraform provider version, which will guide you in deploying a specific service on cloud, on-premise, and SaaS application environments. 
 			Please specify the provider name, namespace, and the service name you wish to provision to utilize this tool.`),
 			mcp.WithString("providerName", mcp.Required(), mcp.Description("The name of the Terraform provider to perform the read or deployment operation.")),
-			mcp.WithString("providerNamespace", mcp.Required(), mcp.Description("The publisher of the Terraform provider, typically the name of the company or organization that created the provider.")),
+			mcp.WithString("providerNamespace", mcp.Required(), mcp.Description("The publisher of the Terraform provider, typically the name of the company or their GitHub organization name that created the provider.")),
 			mcp.WithString("providerVersion", mcp.Description("The version of the Terraform provider to retrieve in the format 'x.y.z', or 'latest' to get the latest version.")),
 			mcp.WithString("providerDataType", mcp.Description("The source type of the Terraform provider to retrieve, can be 'resources' or 'data-sources'."),
 				mcp.Enum("resources", "data-sources")),
 			mcp.WithString("serviceName", mcp.Required(), mcp.Description("The name of the service or resource for read or deployment operations.")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			providerName := request.Params.Arguments["providerName"].(string)
-			providerNamespace := request.Params.Arguments["providerNamespace"]
-			providerVersion := request.Params.Arguments["providerVersion"]
-			providerDataType := request.Params.Arguments["providerDataType"]
-			serviceName := request.Params.Arguments["serviceName"].(string)
-			if ns, ok := providerNamespace.(string); ok && ns != "" {
-				providerNamespace = ns
-			} else {
-				providerNamespace = "hashicorp"
+
+			serviceName, ok := request.Params.Arguments["serviceName"].(string)
+			if !ok || serviceName == "" {
+				return nil, fmt.Errorf("serviceName is required and must be a string")
 			}
 
-			var err error
-			if v, ok := providerVersion.(string); ok && v != "" && v != "latest" {
-				providerVersion = v
-			} else {
-				providerVersion, err = GetLatestProviderVersion(registryClient, providerNamespace, providerName, logger)
-				if err != nil {
-					return nil, logAndReturnError(logger, fmt.Sprintf("Error getting latest provider version in %s namespace", providerNamespace), err)
-				}
+			// For typical provider and namespace hallucinations
+			defaultErrorGuide := "please check the provider name or the namespace, perhaps the provider is published under a different namespace or company name"
+			providerDetail, err := resolveProviderDetails(request, registryClient, defaultErrorGuide, logger)
+			if err != nil {
+				return nil, err
 			}
 
-			content, err := GetProviderResourceDetails(registryClient, providerVersion, providerName, providerNamespace, serviceName, providerDataType, logger)
+			content, err := GetProviderResourceDetails(registryClient, providerDetail, serviceName, logger)
 			if err != nil {
 				return nil, err
 			}

@@ -5,6 +5,13 @@ package tfregistry
 
 import "time"
 
+type ProviderDetail struct {
+	ProviderName      string
+	ProviderNamespace string
+	ProviderVersion   string
+	ProviderDataType  string
+}
+
 // TerraformModule represents the structure of a Terraform module list response.
 // Note: The API seems to return different structures, this one matches the
 // format where the top-level key is "modules".

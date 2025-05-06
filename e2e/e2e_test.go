@@ -1,7 +1,7 @@
 // Copyright (c) HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-package e2e_test
+package e2e
 
 import (
 	"context"
@@ -60,32 +60,83 @@ func TestE2E(t *testing.T) {
 		require.Equal(t, "hcp-terraform-mcp-server", result.ServerInfo.Name)
 	})
 
-	// TODO: split the tests into multiple files
-	t.Run("CallTool providerDetails", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
+	for _, testCase := range providerDetailsTestCases {
+		t.Run("CallTool providerDetails", func(t *testing.T) {
+			// t.Parallel()
+			t.Logf("TOOL providerDetails %s", testCase.TestDescription)
+			t.Logf("Test payload: %v", testCase.TestPayload)
 
-		// When we call the "get_me" tool
-		request := mcp.CallToolRequest{}
-		request.Params.Name = "providerDetails"
-		request.Params.Arguments = map[string]interface{}{
-			"providerName":      "aws",
-			"providerNamespace": "hashicorp",
-			"providerVersion":   "latest",
-		}
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
 
-		response, err := client.CallTool(ctx, request)
-		require.NoError(t, err, "expected to call 'providerDetails' tool successfully")
+			request := mcp.CallToolRequest{}
+			request.Params.Name = "providerDetails"
+			request.Params.Arguments = testCase.TestPayload
 
-		require.False(t, response.IsError, "expected result not to be an error")
-		require.Len(t, response.Content, 1, "expected content to have one item")
+			response, err := client.CallTool(ctx, request)
+			if testCase.TestShouldFail {
+				require.Error(t, err, "expected to call 'providerDetails' tool with error")
+				t.Logf("Error: %v", err)
+				// require.True(t, response.IsError, "expected result to be an error")
+			} else {
+				require.NoError(t, err, "expected to call 'providerDetails' tool successfully")
+				require.False(t, response.IsError, "expected result not to be an error")
+				require.Len(t, response.Content, 1, "expected content to have one item")
 
-		textContent, ok := response.Content[0].(mcp.TextContent)
-		require.True(t, ok, "expected content to be of type TextContent")
+				textContent, ok := response.Content[0].(mcp.TextContent)
+				require.True(t, ok, "expected content to be of type TextContent")
+				t.Logf("Content length: %d", len(textContent.Text))
 
-		// TODO: Need to fix this: it is static and should be updated to test with the actual API response.
-		require.Greater(t, len(textContent.Text), 100, "expected content length to be greater than 100")
-	})
+				if testCase.TestContentType == CONST_TYPE_DATA_SOURCE {
+					require.NotContains(t, textContent.Text, "**Category:** resources", "expected content not to contain resources")
+				} else if testCase.TestContentType == CONST_TYPE_RESOURCE {
+					require.NotContains(t, textContent.Text, "**Category:** data-sources", "expected content not to contain data-sources")
+				} else if testCase.TestContentType == CONST_TYPE_BOTH {
+					require.Contains(t, textContent.Text, "**Category:** resources", "expected content to contain resources")
+					require.Contains(t, textContent.Text, "**Category:** data-sources", "expected content to contain data-sources")
+				}
+			}
+		})
+	}
+
+	for _, testCase := range providerDetailsTestCases {
+		t.Run("CallTool providerResourceDetails", func(t *testing.T) {
+			// t.Parallel()
+			t.Logf("TOOL providerResourceDetails %s", testCase.TestDescription)
+			t.Logf("Test payload: %v", testCase.TestPayload)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			request := mcp.CallToolRequest{}
+			request.Params.Name = "providerResourceDetails"
+			request.Params.Arguments = testCase.TestPayload
+
+			response, err := client.CallTool(ctx, request)
+			if testCase.TestShouldFail {
+				require.Error(t, err, "expected to call 'providerResourceDetails' tool with error")
+				t.Logf("Error: %v", err)
+				// require.True(t, response.IsError, "expected result to be an error")
+			} else {
+				require.NoError(t, err, "expected to call 'providerResourceDetails' tool successfully")
+				require.False(t, response.IsError, "expected result not to be an error")
+				require.Len(t, response.Content, 1, "expected content to have one item")
+
+				textContent, ok := response.Content[0].(mcp.TextContent)
+				require.True(t, ok, "expected content to be of type TextContent")
+				t.Logf("Content length: %d", len(textContent.Text))
+
+				if testCase.TestContentType == CONST_TYPE_DATA_SOURCE {
+					require.NotContains(t, textContent.Text, "**Category:** resources", "expected content not to contain resources")
+				} else if testCase.TestContentType == CONST_TYPE_RESOURCE {
+					require.NotContains(t, textContent.Text, "**Category:** data-sources", "expected content not to contain data-sources")
+				} else if testCase.TestContentType == CONST_TYPE_BOTH {
+					require.Contains(t, textContent.Text, "resource", "expected content to contain resources")
+					require.Contains(t, textContent.Text, "data source", "expected content to contain data-sources")
+				}
+			}
+		})
+	}
 
 	// TODO: split the tests into multiple files
 	t.Run("CallTool listModules", func(t *testing.T) {
