@@ -27,14 +27,24 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 				mcp.Enum("resources", "data-sources")), // TODO: Limitation due to the v1 API, we need to implement v2
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			providerName := request.Params.Arguments["providerName"].(string)
-			providerNamespace := request.Params.Arguments["providerNamespace"]
+			providerName, ok := request.Params.Arguments["providerName"].(string)
+			if !ok || providerName == "" {
+				return nil, fmt.Errorf("providerName is required and must be a string")
+			}
+
+			providerNamespace, ok := request.Params.Arguments["providerNamespace"].(string)
+			if !ok || providerNamespace == "" {
+				logger.Debugf(`Error getting latest provider version in "%s" namespace`, providerNamespace)
+				providerNamespace = "hashicorp"
+			}
+
+			// For typical provider and namespace hallucinations
+			defaultErrorGuide := "please check the provider name or the namespace, perhaps the provider is published under a different namespace or company name"
 			providerVersion := request.Params.Arguments["providerVersion"]
 			providerDataType := request.Params.Arguments["providerDataType"]
 
 			var err error
-			// Try to get the provider version using the namespace given by the AI client
-			if v, ok := providerVersion.(string); ok && v != "" && v != "latest" {
+			if v, ok := providerVersion.(string); ok && isValidProviderVersionFormat(v) {
 				providerVersion = v
 			} else {
 				providerVersion, err = GetLatestProviderVersion(registryClient, providerNamespace, providerName, logger)
@@ -46,11 +56,17 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 
 			// If the provider version doesn't exist, try the hashicorp namespace
 			if providerVersion == "" {
-				providerNamespace = "hashicorp"
-				providerVersion, err = GetLatestProviderVersion(registryClient, providerNamespace, providerName, logger)
+				tryProviderNamespace := "hashicorp"
+				providerVersion, err = GetLatestProviderVersion(registryClient, tryProviderNamespace, providerName, logger)
 				if err != nil {
-					return nil, logAndReturnError(logger, fmt.Sprintf("Error getting latest provider version in %s namespace", providerNamespace), err)
+					// Just so we don't print the same namespace twice if they are the same
+					if providerNamespace != tryProviderNamespace {
+						tryProviderNamespace = fmt.Sprintf(`"%s" or the "%s"`, providerNamespace, tryProviderNamespace)
+					}
+					errMessage := fmt.Sprintf(`Error getting the "%s" provider, with version "%s" in the %s namespace, %s`, providerName, providerVersion, tryProviderNamespace, defaultErrorGuide)
+					return nil, logAndReturnError(logger, errMessage, fmt.Errorf("%s", errMessage))
 				}
+				providerNamespace = tryProviderNamespace // Update the namespace to hashicorp, if successful
 			}
 
 			uri := fmt.Sprintf("providers/%s/%s/%s", providerNamespace, providerName, providerVersion)
@@ -65,16 +81,24 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 			}
 
 			content := fmt.Sprintf("# %s provider docs\n\n", providerName)
+			contentAvailable := false
 			// Get the sourceType and check if it was provided
-			providerDataTypeValue, providerDataTypeProvided := providerDataType.(string)
+			providerDataTypeValue, ok := providerDataType.(string)
 			for _, doc := range providerDocs.Docs {
 				// Include the doc if sourceType was not provided/empty OR if the doc category matches the provided sourceType
-				if !providerDataTypeProvided || providerDataTypeValue == "" || doc.Category == providerDataTypeValue {
+				if !ok || providerDataTypeValue == "" || doc.Category == providerDataTypeValue {
 					if doc.Language == "hcl" {
+						contentAvailable = true
 						content += fmt.Sprintf("## %s \n\n**Id:** %s \n\n**Category:** %s\n\n**Subcategory:** %s\n\n**Path:** %s\n\n",
 							doc.Title, doc.ID, doc.Category, doc.Subcategory, doc.Path)
 					}
 				}
+			}
+
+			// Check if the content data is not fulfilled
+			if !contentAvailable {
+				errMessage := fmt.Sprintf(`No documentation found for provider '%s' in the '%s' namespace, %s`, providerName, providerNamespace, defaultErrorGuide)
+				return nil, logAndReturnError(logger, errMessage, err)
 			}
 			return mcp.NewToolResultText(content), nil
 		}

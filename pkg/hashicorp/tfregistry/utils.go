@@ -279,6 +279,10 @@ func sendRegistryCall(client *http.Client, method string, uri string, logger *lo
 		return nil, err
 	}
 
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("error: %s", "404 Not Found")
+	}
+
 	defer resp.Body.Close()
 	// Read the response body
 	body, err := io.ReadAll(resp.Body)

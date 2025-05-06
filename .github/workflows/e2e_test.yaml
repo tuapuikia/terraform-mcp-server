@@ -30,7 +30,7 @@ jobs:
 
       - name: Run unit tests
         env:
-          HCP_TFE_TOKEN: ${{ github.input.HCP_TFE_TOKEN }} # We'll want to figure out how we can setup of a HCP account for testing purposes.
+          HCP_TFE_TOKEN: ${{ github.input.HCP_TFE_TOKEN }}
         run: go test -v ./e2e
 
       - name: Build
