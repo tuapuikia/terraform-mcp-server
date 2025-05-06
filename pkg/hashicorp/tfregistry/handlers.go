@@ -30,12 +30,12 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 
 			// For typical provider and namespace hallucinations
 			defaultErrorGuide := "please check the provider name or the namespace, perhaps the provider is published under a different namespace or company name"
-			providerName, providerNamespace, providerVersion, providerDataType, err := resolveProviderDetails(request, registryClient, defaultErrorGuide, logger)
+			providerDetail, err := resolveProviderDetails(request, registryClient, defaultErrorGuide, logger)
 			if err != nil {
 				return nil, err
 			}
 
-			uri := fmt.Sprintf("providers/%s/%s/%s", providerNamespace, providerName, providerVersion)
+			uri := fmt.Sprintf("providers/%s/%s/%s", providerDetail.ProviderNamespace, providerDetail.ProviderName, providerDetail.ProviderVersion)
 			response, err := sendRegistryCall(registryClient, "GET", uri, logger)
 			if err != nil {
 				return nil, logAndReturnError(logger, "getting provider details", err)
@@ -46,12 +46,12 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 				return nil, logAndReturnError(logger, "unmarshalling provider docs", err)
 			}
 
-			content := fmt.Sprintf("# %s provider docs\n\n", providerName)
+			content := fmt.Sprintf("# %s provider docs\n\n", providerDetail.ProviderName)
 			contentAvailable := false
 			for _, doc := range providerDocs.Docs {
 				// restrictData determines whether the data should be restricted based on the provider data type.
 				// It evaluates to true if providerDataType is not empty and does not match the doc's category.
-				restrictData := providerDataType != "" && providerDataType != doc.Category
+				restrictData := providerDetail.ProviderDataType != "" && providerDetail.ProviderDataType != doc.Category
 				if !restrictData {
 					if doc.Language == "hcl" {
 						contentAvailable = true
@@ -63,7 +63,7 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 
 			// Check if the content data is not fulfilled
 			if !contentAvailable {
-				errMessage := fmt.Sprintf(`No documentation found for provider '%s' in the '%s' namespace, %s`, providerName, providerNamespace, defaultErrorGuide)
+				errMessage := fmt.Sprintf(`No documentation found for provider '%s' in the '%s' namespace, %s`, providerDetail.ProviderName, providerDetail.ProviderNamespace, defaultErrorGuide)
 				return nil, logAndReturnError(logger, errMessage, err)
 			}
 			return mcp.NewToolResultText(content), nil
@@ -90,12 +90,12 @@ func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (t
 
 			// For typical provider and namespace hallucinations
 			defaultErrorGuide := "please check the provider name or the namespace, perhaps the provider is published under a different namespace or company name"
-			providerName, providerNamespace, providerVersion, providerDataType, err := resolveProviderDetails(request, registryClient, defaultErrorGuide, logger)
+			providerDetail, err := resolveProviderDetails(request, registryClient, defaultErrorGuide, logger)
 			if err != nil {
 				return nil, err
 			}
 
-			content, err := GetProviderResourceDetails(registryClient, providerVersion, providerName, providerNamespace, serviceName, providerDataType, logger)
+			content, err := GetProviderResourceDetails(registryClient, providerDetail, serviceName, logger)
 			if err != nil {
 				return nil, err
 			}

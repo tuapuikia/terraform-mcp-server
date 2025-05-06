@@ -167,10 +167,10 @@ func logError(logger *log.Logger, context string, err error) {
 	logger.Errorf("Error in %s: %v", context, err)
 }
 
-func GetProviderResourceDetails(client *http.Client, version, providerName string, providerNamespace string, serviceName string, providerDataType string, logger *log.Logger) (string, error) {
+func GetProviderResourceDetails(client *http.Client, providerDetail ProviderDetail, serviceName string, logger *log.Logger) (string, error) {
 	var content string
 
-	uri := fmt.Sprintf("providers/%s/%s/%s", providerNamespace, providerName, version)
+	uri := fmt.Sprintf("providers/%s/%s/%s", providerDetail.ProviderNamespace, providerDetail.ProviderName, providerDetail.ProviderVersion)
 	response, err := sendRegistryCall(client, "GET", uri, logger)
 	if err != nil {
 		return "", logAndReturnError(logger, "getting provider details", err)
@@ -181,11 +181,11 @@ func GetProviderResourceDetails(client *http.Client, version, providerName strin
 		return "", logAndReturnError(logger, "unmarshalling provider docs", err)
 	}
 
-	content = fmt.Sprintf("# %s provider docs\n\n", providerName)
+	content = fmt.Sprintf("# %s provider docs\n\n", providerDetail.ProviderName)
 	for _, doc := range providerDocs.Docs {
 		// restrictData determines whether the data should be restricted based on the provider data type.
 		// It evaluates to true if providerDataType is not empty and does not match the doc's category.
-		restrictData := providerDataType != "" && providerDataType != doc.Category
+		restrictData := providerDetail.ProviderDataType != "" && providerDetail.ProviderDataType != doc.Category
 		if !restrictData {
 			if match, err := containsSlug(serviceName, doc.Slug); err == nil && match && doc.Language == "hcl" {
 				response, err := sendRegistryCall(client, "GET", fmt.Sprintf("provider-docs/%s", doc.ID), logger, "v2")
@@ -262,10 +262,11 @@ func isValidProviderDataType(providerDataType string) bool {
 	return providerDataType == "resources" || providerDataType == "data-sources" || providerDataType == "provider-guides"
 }
 
-func resolveProviderDetails(request mcp.CallToolRequest, registryClient *http.Client, defaultErrorGuide string, logger *log.Logger) (string, string, string, string, error) {
+func resolveProviderDetails(request mcp.CallToolRequest, registryClient *http.Client, defaultErrorGuide string, logger *log.Logger) (ProviderDetail, error) {
+	providerDetail := ProviderDetail{}
 	providerName, ok := request.Params.Arguments["providerName"].(string)
 	if !ok || providerName == "" {
-		return "", "", "", "", fmt.Errorf("providerName is required and must be a string")
+		return providerDetail, fmt.Errorf("providerName is required and must be a string")
 	}
 
 	providerNamespace, ok := request.Params.Arguments["providerNamespace"].(string)
@@ -299,7 +300,7 @@ func resolveProviderDetails(request mcp.CallToolRequest, registryClient *http.Cl
 				tryProviderNamespace = fmt.Sprintf(`"%s" or the "%s"`, providerNamespace, tryProviderNamespace)
 			}
 			errMessage := fmt.Sprintf(`Error getting the "%s" provider, with version "%s" in the %s namespace, %s`, providerName, providerVersion, tryProviderNamespace, defaultErrorGuide)
-			return "", "", "", "", logAndReturnError(logger, errMessage, fmt.Errorf("%s", errMessage))
+			return providerDetail, logAndReturnError(logger, errMessage, fmt.Errorf("%s", errMessage))
 		}
 		providerNamespace = tryProviderNamespace // Update the namespace to hashicorp, if successful
 	}
@@ -308,7 +309,12 @@ func resolveProviderDetails(request mcp.CallToolRequest, registryClient *http.Cl
 	if pdt, ok := providerDataType.(string); ok && isValidProviderDataType(pdt) {
 		providerDataTypeValue = pdt
 	}
-	return providerName, providerNamespace, providerVersionValue, providerDataTypeValue, nil
+
+	providerDetail.ProviderName = providerName
+	providerDetail.ProviderNamespace = providerNamespace
+	providerDetail.ProviderVersion = providerVersionValue
+	providerDetail.ProviderDataType = providerDataTypeValue
+	return providerDetail, nil
 }
 
 func sendRegistryCall(client *http.Client, method string, uri string, logger *log.Logger, callOptions ...string) ([]byte, error) {
