@@ -21,52 +21,18 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 			For each item, note the existence and path of its documentation.
 			`),
 			mcp.WithString("providerName", mcp.Required(), mcp.Description("The name of the Terraform provider to perform the read or deployment operation.")),
-			mcp.WithString("providerNamespace", mcp.Required(), mcp.Description("The publisher of the Terraform provider, typically the name of the company or organization that created the provider.")),
+			mcp.WithString("providerNamespace", mcp.Required(), mcp.Description("The publisher of the Terraform provider, typically the name of the company, or their GitHub organization name that created the provider.")),
 			mcp.WithString("providerVersion", mcp.Description("The version of the Terraform provider to retrieve in the format 'x.y.z', or 'latest' to get the latest version.")),
 			mcp.WithString("providerDataType", mcp.Description("The source type of the Terraform provider to retrieve, can be 'resources' or 'data-sources'."),
 				mcp.Enum("resources", "data-sources")), // TODO: Limitation due to the v1 API, we need to implement v2
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			providerName, ok := request.Params.Arguments["providerName"].(string)
-			if !ok || providerName == "" {
-				return nil, fmt.Errorf("providerName is required and must be a string")
-			}
-
-			providerNamespace, ok := request.Params.Arguments["providerNamespace"].(string)
-			if !ok || providerNamespace == "" {
-				logger.Debugf(`Error getting latest provider version in "%s" namespace`, providerNamespace)
-				providerNamespace = "hashicorp"
-			}
 
 			// For typical provider and namespace hallucinations
 			defaultErrorGuide := "please check the provider name or the namespace, perhaps the provider is published under a different namespace or company name"
-			providerVersion := request.Params.Arguments["providerVersion"]
-			providerDataType := request.Params.Arguments["providerDataType"]
-
-			var err error
-			if v, ok := providerVersion.(string); ok && isValidProviderVersionFormat(v) {
-				providerVersion = v
-			} else {
-				providerVersion, err = GetLatestProviderVersion(registryClient, providerNamespace, providerName, logger)
-				if err != nil {
-					providerVersion = ""
-					logger.Debugf("Error getting latest provider version in %s namespace: %v", providerNamespace, err)
-				}
-			}
-
-			// If the provider version doesn't exist, try the hashicorp namespace
-			if providerVersion == "" {
-				tryProviderNamespace := "hashicorp"
-				providerVersion, err = GetLatestProviderVersion(registryClient, tryProviderNamespace, providerName, logger)
-				if err != nil {
-					// Just so we don't print the same namespace twice if they are the same
-					if providerNamespace != tryProviderNamespace {
-						tryProviderNamespace = fmt.Sprintf(`"%s" or the "%s"`, providerNamespace, tryProviderNamespace)
-					}
-					errMessage := fmt.Sprintf(`Error getting the "%s" provider, with version "%s" in the %s namespace, %s`, providerName, providerVersion, tryProviderNamespace, defaultErrorGuide)
-					return nil, logAndReturnError(logger, errMessage, fmt.Errorf("%s", errMessage))
-				}
-				providerNamespace = tryProviderNamespace // Update the namespace to hashicorp, if successful
+			providerName, providerNamespace, providerVersion, providerDataType, err := resolveProviderDetails(request, registryClient, defaultErrorGuide, logger)
+			if err != nil {
+				return nil, err
 			}
 
 			uri := fmt.Sprintf("providers/%s/%s/%s", providerNamespace, providerName, providerVersion)
@@ -82,11 +48,11 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 
 			content := fmt.Sprintf("# %s provider docs\n\n", providerName)
 			contentAvailable := false
-			// Get the sourceType and check if it was provided
-			providerDataTypeValue, ok := providerDataType.(string)
 			for _, doc := range providerDocs.Docs {
-				// Include the doc if sourceType was not provided/empty OR if the doc category matches the provided sourceType
-				if !ok || providerDataTypeValue == "" || doc.Category == providerDataTypeValue {
+				// restrictData determines whether the data should be restricted based on the provider data type.
+				// It evaluates to true if providerDataType is not empty and does not match the doc's category.
+				restrictData := providerDataType != "" && providerDataType != doc.Category
+				if !restrictData {
 					if doc.Language == "hcl" {
 						contentAvailable = true
 						content += fmt.Sprintf("## %s \n\n**Id:** %s \n\n**Category:** %s\n\n**Subcategory:** %s\n\n**Path:** %s\n\n",
@@ -109,32 +75,24 @@ func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (t
 			mcp.WithDescription(`This tool is used to obtain the documentation, schema, and code examples from a given Terraform provider version, which will guide you in deploying a specific service on cloud, on-premise, and SaaS application environments. 
 			Please specify the provider name, namespace, and the service name you wish to provision to utilize this tool.`),
 			mcp.WithString("providerName", mcp.Required(), mcp.Description("The name of the Terraform provider to perform the read or deployment operation.")),
-			mcp.WithString("providerNamespace", mcp.Required(), mcp.Description("The publisher of the Terraform provider, typically the name of the company or organization that created the provider.")),
+			mcp.WithString("providerNamespace", mcp.Required(), mcp.Description("The publisher of the Terraform provider, typically the name of the company or their GitHub organization name that created the provider.")),
 			mcp.WithString("providerVersion", mcp.Description("The version of the Terraform provider to retrieve in the format 'x.y.z', or 'latest' to get the latest version.")),
 			mcp.WithString("providerDataType", mcp.Description("The source type of the Terraform provider to retrieve, can be 'resources' or 'data-sources'."),
 				mcp.Enum("resources", "data-sources")),
 			mcp.WithString("serviceName", mcp.Required(), mcp.Description("The name of the service or resource for read or deployment operations.")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			providerName := request.Params.Arguments["providerName"].(string)
-			providerNamespace := request.Params.Arguments["providerNamespace"]
-			providerVersion := request.Params.Arguments["providerVersion"]
-			providerDataType := request.Params.Arguments["providerDataType"]
-			serviceName := request.Params.Arguments["serviceName"].(string)
-			if ns, ok := providerNamespace.(string); ok && ns != "" {
-				providerNamespace = ns
-			} else {
-				providerNamespace = "hashicorp"
+
+			serviceName, ok := request.Params.Arguments["serviceName"].(string)
+			if !ok || serviceName == "" {
+				return nil, fmt.Errorf("serviceName is required and must be a string")
 			}
 
-			var err error
-			if v, ok := providerVersion.(string); ok && v != "" && v != "latest" {
-				providerVersion = v
-			} else {
-				providerVersion, err = GetLatestProviderVersion(registryClient, providerNamespace, providerName, logger)
-				if err != nil {
-					return nil, logAndReturnError(logger, fmt.Sprintf("Error getting latest provider version in %s namespace", providerNamespace), err)
-				}
+			// For typical provider and namespace hallucinations
+			defaultErrorGuide := "please check the provider name or the namespace, perhaps the provider is published under a different namespace or company name"
+			providerName, providerNamespace, providerVersion, providerDataType, err := resolveProviderDetails(request, registryClient, defaultErrorGuide, logger)
+			if err != nil {
+				return nil, err
 			}
 
 			content, err := GetProviderResourceDetails(registryClient, providerVersion, providerName, providerNamespace, serviceName, providerDataType, logger)
