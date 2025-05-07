@@ -105,3 +105,104 @@ var providerDetailsTestCases = []ProviderTestCase{
 		},
 	},
 }
+
+var listModulesTestCases = []ProviderTestCase{
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing listModules with no parameters (default offset)",
+		TestPayload:     map[string]interface{}{},
+	},
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing listModules with moduleProvider 'aws'",
+		TestPayload: map[string]interface{}{
+			"moduleProvider": "aws",
+		},
+	},
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing listModules with moduleProvider 'google' and currentOffset 10",
+		TestPayload: map[string]interface{}{
+			"moduleProvider": "google",
+			"currentOffset":  10,
+		},
+	},
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing listModules with currentOffset 5 only",
+		TestPayload: map[string]interface{}{
+			"currentOffset": 5,
+		},
+	},
+	{
+		TestShouldFail:  true,
+		TestDescription: "Testing listModules with invalid currentOffset (negative)",
+		TestPayload: map[string]interface{}{
+			"currentOffset": -1,
+		},
+	},
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing listModules with a moduleProvider not in the map (e.g., 'unknownprovider')",
+		TestPayload: map[string]interface{}{
+			"moduleProvider": "unknownprovider",
+		},
+	},
+}
+
+var moduleDetailsTestCases = []ProviderTestCase{
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing moduleDetails with valid 'vpc' module for 'aws' provider",
+		TestPayload: map[string]interface{}{
+			"moduleName":     "vpc",
+			"moduleProvider": "aws",
+		},
+	},
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing moduleDetails missing moduleName",
+		TestPayload: map[string]interface{}{
+			"moduleProvider": "aws",
+		},
+	},
+	{
+		TestShouldFail:  true,
+		TestDescription: "Testing moduleDetails missing moduleProvider",
+		TestPayload: map[string]interface{}{
+			"moduleName": "vpc",
+		},
+	},
+	{
+		TestShouldFail:  true,
+		TestDescription: "Testing moduleDetails with empty moduleName",
+		TestPayload: map[string]interface{}{
+			"moduleName":     "",
+			"moduleProvider": "aws",
+		},
+	},
+	{
+		TestShouldFail:  true,
+		TestDescription: "Testing moduleDetails with empty moduleProvider",
+		TestPayload: map[string]interface{}{
+			"moduleName":     "vpc",
+			"moduleProvider": "",
+		},
+	},
+	{
+		TestShouldFail:  true, // Expecting empty or error, but the call itself might not fail schema validation
+		TestDescription: "Testing moduleDetails with non-existent module 'nonexistentmodule' for 'aws' provider",
+		TestPayload: map[string]interface{}{
+			"moduleName":     "nonexistentmodule",
+			"moduleProvider": "aws",
+		},
+	},
+	{
+		TestShouldFail:  true, // Expecting empty or error, tool call might succeed but return no useful data
+		TestDescription: "Testing moduleDetails with moduleProvider 'unknownprovider'",
+		TestPayload: map[string]interface{}{
+			"moduleName":     "vpc",
+			"moduleProvider": "unknownprovider",
+		},
+	},
+}

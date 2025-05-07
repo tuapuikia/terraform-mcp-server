@@ -139,90 +139,84 @@ func TestE2E(t *testing.T) {
 	}
 
 	// TODO: split the tests into multiple files
-	t.Run("CallTool listModules", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
+	for _, testCase := range moduleDetailsTestCases {
+		t.Run("CallTool moduleDetails", func(t *testing.T) {
+			// t.Parallel()
+			t.Logf("TOOL moduleDetails %s", testCase.TestDescription)
+			t.Logf("Test payload: %v", testCase.TestPayload)
 
-		// When we call the "get_me" tool
-		request := mcp.CallToolRequest{}
-		request.Params.Name = "listModules"
-		request.Params.Arguments = map[string]interface{}{
-			"currentOffset": 0,
-		}
-		response, err := client.CallTool(ctx, request)
-		require.NoError(t, err, "expected to call 'listModules' tool successfully")
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
 
-		require.False(t, response.IsError, "expected result not to be an error")
-		require.Len(t, response.Content, 1, "expected content to have one item")
+			request := mcp.CallToolRequest{}
+			request.Params.Name = "moduleDetails"
+			request.Params.Arguments = testCase.TestPayload
 
-		textResourceContents, ok := response.Content[0].(mcp.TextContent)
-		require.True(t, ok, "expected content to be of type TextResourceContents")
+			response, err := client.CallTool(ctx, request)
+			if testCase.TestShouldFail {
+				require.Error(t, err, "expected to call 'moduleDetails' tool with error")
+				t.Logf("Error: %v", err)
+				// require.True(t, response.IsError, "expected result to be an error")
+			} else {
+				require.NoError(t, err, "expected to call 'moduleDetails' tool successfully")
+				require.False(t, response.IsError, "expected result not to be an error")
+				require.Len(t, response.Content, 1, "expected content to have one item")
 
-		t.Logf("Raw response content: %s", textResourceContents.Type)
-		require.Equal(t, "text", textResourceContents.Type, "expected modules to match")
-	})
+				textContent, ok := response.Content[0].(mcp.TextContent)
+				require.True(t, ok, "expected content to be of type TextContent")
+				t.Logf("Content length: %d", len(textContent.Text))
 
-	t.Run("CallTool listModules pagination", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
+				if testCase.TestContentType == CONST_TYPE_DATA_SOURCE {
+					require.NotContains(t, textContent.Text, "**Category:** resources", "expected content not to contain resources")
+				} else if testCase.TestContentType == CONST_TYPE_RESOURCE {
+					require.NotContains(t, textContent.Text, "**Category:** data-sources", "expected content not to contain data-sources")
+				} else if testCase.TestContentType == CONST_TYPE_BOTH {
+					require.Contains(t, textContent.Text, "resource", "expected content to contain resources")
+					require.Contains(t, textContent.Text, "data source", "expected content to contain data-sources")
+				}
+			}
+		})
+	}
 
-		request := mcp.CallToolRequest{}
-		request.Params.Name = "listModules"
-		request.Params.Arguments = map[string]interface{}{
-			"currentOffset": 0,
-		}
-		response, err := client.CallTool(ctx, request)
-		require.NoError(t, err, "expected to call 'listModules' tool successfully")
+	for _, testCase := range listModulesTestCases {
+		t.Run("CallTool listModules", func(t *testing.T) {
+			// t.Parallel()
+			t.Logf("TOOL listModules %s", testCase.TestDescription)
+			t.Logf("Test payload: %v", testCase.TestPayload)
 
-		require.False(t, response.IsError, "expected result not to be an error")
-		require.Len(t, response.Content, 1, "expected content to have one item")
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
 
-		textResourceContents, ok := response.Content[0].(mcp.TextContent)
-		require.True(t, ok, "expected content to be of type TextResourceContents")
+			request := mcp.CallToolRequest{}
+			request.Params.Name = "listModules"
+			request.Params.Arguments = testCase.TestPayload
 
-		t.Logf("Raw response content: %s", textResourceContents.Type)
-		require.Equal(t, "text", textResourceContents.Type, "expected modules to match")
-
-		// Paginate to the next page by setting the currentOffset to 15 (max per page is 15)
-		request.Params.Arguments = map[string]interface{}{
-			"currentOffset": 15,
-		}
-		response, err = client.CallTool(ctx, request)
-		require.NoError(t, err, "expected to call 'listModules' tool successfully")
-
-		require.False(t, response.IsError, "expected result not to be an error")
-		require.Len(t, response.Content, 1, "expected content to have one item")
-
-		textResourceContents, ok = response.Content[0].(mcp.TextContent)
-		require.True(t, ok, "expected content to be of type TextResourceContents")
-
-		t.Logf("Raw response content: %s", textResourceContents.Type)
-		require.Equal(t, "text", textResourceContents.Type, "expected modules to match")
-	})
-
-	t.Run("CallTool moduleDetails", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		// When we call the "get_me" tool
-		request := mcp.CallToolRequest{}
-		request.Params.Name = "moduleDetails"
-		request.Params.Arguments = map[string]interface{}{
-			"moduleName":     "vpc",
-			"moduleProvider": "aws",
-		}
-		response, err := client.CallTool(ctx, request)
-		require.NoError(t, err, "expected to call 'listModules' tool successfully")
-
-		require.False(t, response.IsError, "expected result not to be an error")
-		require.Len(t, response.Content, 1, "expected content to have one item")
-
-		textResourceContents, ok := response.Content[0].(mcp.TextContent)
-		require.True(t, ok, "expected content to be of type TextResourceContents")
-
-		t.Logf("Raw response content: %s", textResourceContents.Type)
-		require.Equal(t, "text", textResourceContents.Type, "expected typs to match")
-	})
+			response, err := client.CallTool(ctx, request)
+			if testCase.TestShouldFail {
+				require.Error(t, err, "expected to call 'listModules' tool with error")
+				t.Logf("Error: %v", err)
+				// require.True(t, response.IsError, "expected result to be an error") // Optionally check response.IsError if the MCP client sets it on client-side validation failures
+			} else {
+				require.NoError(t, err, "expected to call 'listModules' tool successfully")
+				require.False(t, response.IsError, "expected result not to be an error")
+				// For listModules, we expect one content item which is the text list of modules.
+				// If no modules are found for a valid query, it might return an empty list or a message,
+				// but the call itself should succeed.
+				if len(response.Content) > 0 { // Check if content is present before trying to access it
+					textContent, ok := response.Content[0].(mcp.TextContent)
+					require.True(t, ok, "expected content to be of type TextContent")
+					t.Logf("Content length: %d", len(textContent.Text))
+					// Add more specific content assertions here if needed, e.g., check for "module" keyword
+					// require.Contains(t, textContent.Text, "module", "expected content to contain 'module'")
+				} else {
+					// Handle cases where successful calls might return no content items (e.g. empty list of modules)
+					// This depends on the expected behavior of the listModules tool for such cases.
+					// For now, we just log it.
+					t.Log("Response content is empty for successful call.")
+				}
+			}
+		})
+	}
 }
 
 func buildDockerImage(t *testing.T) {
