@@ -148,8 +148,11 @@ func ListModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool
 				modulesData += *content
 				return mcp.NewToolResultText(modulesData), nil
 			}
-
-			for _, namespace := range providerToNamespaceModule[moduleProvider.(string)].([]interface{}) {
+			namespaces, ok := providerToNamespaceModule[moduleProvider.(string)]
+			if !ok {
+				return nil, logAndReturnError(logger, "provider not found", nil)
+			}
+			for _, namespace := range namespaces.([]interface{}) {
 				response, err := getModuleDetails(registryClient, namespace, nil, nil, currentOffset, logger)
 				if err != nil {
 					logger.Errorf("Error listing modules: %v", err)

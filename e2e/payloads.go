@@ -108,13 +108,13 @@ var providerDetailsTestCases = []ProviderTestCase{
 
 var listModulesTestCases = []ProviderTestCase{
 	{
-		TestShouldFail:  false,
-		TestDescription: "Testing listModules with no parameters (default offset)",
+		TestShouldFail:  true,
+		TestDescription: "Testing listModules with no parameters",
 		TestPayload:     map[string]interface{}{},
 	},
 	{
-		TestShouldFail:  false,
-		TestDescription: "Testing listModules with moduleProvider 'aws'",
+		TestShouldFail:  true,
+		TestDescription: "Testing listModules with moduleProvider 'aws' - no offset",
 		TestPayload: map[string]interface{}{
 			"moduleProvider": "aws",
 		},
@@ -124,14 +124,14 @@ var listModulesTestCases = []ProviderTestCase{
 		TestDescription: "Testing listModules with moduleProvider 'google' and currentOffset 10",
 		TestPayload: map[string]interface{}{
 			"moduleProvider": "google",
-			"currentOffset":  10,
+			"currentOffset":  10.0,
 		},
 	},
 	{
 		TestShouldFail:  false,
 		TestDescription: "Testing listModules with currentOffset 5 only",
 		TestPayload: map[string]interface{}{
-			"currentOffset": 5,
+			"currentOffset": 5.0,
 		},
 	},
 	{
@@ -142,7 +142,7 @@ var listModulesTestCases = []ProviderTestCase{
 		},
 	},
 	{
-		TestShouldFail:  false,
+		TestShouldFail:  true,
 		TestDescription: "Testing listModules with a moduleProvider not in the map (e.g., 'unknownprovider')",
 		TestPayload: map[string]interface{}{
 			"moduleProvider": "unknownprovider",
