@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 
 	log "github.com/sirupsen/logrus"
 
@@ -108,16 +107,6 @@ func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (t
 		}
 }
 
-const MODULE_BASE_PATH = "registry://modules"
-
-var providerToNamespaceModule = map[string]interface{}{
-	"google":  []interface{}{"GoogleCloudPlatform", "terraform-google-modules"},
-	"aws":     []interface{}{"aws-ia", "terraform-aws-modules"},
-	"azurerm": []interface{}{"Azure", "aztfmod"},
-	"oracle":  []interface{}{"oracle", "oracle-terraform-modules"},
-	"alibaba": []interface{}{"alibaba", "terraform-alicloud-modules"},
-}
-
 func ListModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("listModules",
 			mcp.WithDescription(`This tool helps users deploy complex services on cloud and on-premise environments by retrieving a list of Terraform modules.
@@ -133,33 +122,42 @@ func ListModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool
 		), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			moduleProvider := request.Params.Arguments["moduleProvider"]
 			currentOffset := request.Params.Arguments["currentOffset"]
-			var modulesData string
-			if moduleProvider == nil {
-				response, err := getModuleDetails(registryClient, nil, nil, nil, currentOffset, logger)
-				if err != nil {
-					logger.Errorf("Error getting modules: %v", err)
-					return nil, err
-				}
-				content, err := UnmarshalTFModulePlural(response)
-				if err != nil {
-					logger.Errorf("Error unmarshalling modules: %v", err)
-					return nil, err
-				}
-				modulesData += *content
-				return mcp.NewToolResultText(modulesData), nil
+			currentOffsetValue := 0
+			if _, ok := currentOffset.(int); ok {
+				currentOffsetValue = currentOffset.(int)
 			}
 
-			for _, namespace := range providerToNamespaceModule[moduleProvider.(string)].([]interface{}) {
-				response, err := getModuleDetails(registryClient, namespace, nil, nil, currentOffset, logger)
+			if moduleProvider == nil {
+				response, err := getModuleDetails(registryClient, ModuleDetail{}, currentOffsetValue, logger)
 				if err != nil {
-					logger.Errorf("Error listing modules: %v", err)
-					return nil, err
+					return nil, logAndReturnError(logger, "getting modules", err)
+				}
+				content, err := UnmarshalTFModulePlural(response)
+				if err != nil {
+					return nil, logAndReturnError(logger, "unmarshalling modules", err)
+				}
+				return mcp.NewToolResultText(*content), nil
+			}
+
+			if _, ok := moduleProvider.(string); !ok {
+				return nil, logAndReturnError(logger, "error finding the provider, It represents the provider associated with the module, typically the name of the provider where most resources are deployed like aws, azurerm, google etc.", nil)
+			}
+			potentialModuleNamespaces, ok := providerToNamespaceModule[moduleProvider.(string)]
+			if !ok {
+				// If the moduleProvider is not found in the map, we try the moduleProvider name as the namespace
+				potentialModuleNamespaces = []interface{}{moduleProvider.(string)}
+			}
+
+			var modulesData string
+			for _, moduleNamespace := range potentialModuleNamespaces.([]interface{}) {
+				response, err := getModuleDetails(registryClient, ModuleDetail{ModuleNamespace: moduleNamespace.(string)}, currentOffsetValue, logger)
+				if err != nil {
+					return nil, logAndReturnError(logger, fmt.Sprintf("getting module(s), none found for moduleNamespace %s, please provider a different moduleProvider", moduleNamespace.(string)), err)
 				}
 
 				content, err := UnmarshalTFModulePlural(response)
 				if err != nil {
-					logger.Errorf("Error unmarshalling modules list: %v", err)
-					return nil, err
+					return nil, logAndReturnError(logger, fmt.Sprintf("unmarshalling modules for moduleNamespace: %s", moduleNamespace.(string)), err)
 				}
 				modulesData += *content
 			}
@@ -178,159 +176,44 @@ func ModuleDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.To
 			// TODO: We shouldn't need to include provider as an input, we could potentially grab the provider value from first GET and then perform a second GET with the provider value
 			mcp.WithString("moduleProvider",
 				mcp.Required(),
-				mcp.Description("The provider associated with the module, used to determine the correct namespace or the publisher of the module."),
+				mcp.Description("The provider associated with the module, it's the name of the provider where most resources are deployed like aws, azurerm, google etc. used to determine the correct namespace or the publisher of the module."),
 			),
 		), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			moduleName := request.Params.Arguments["moduleName"]
 			moduleProvider := request.Params.Arguments["moduleProvider"]
-			if _, ok := moduleProvider.(string); !ok {
-				moduleProvider = ""
+			if mn, ok := moduleName.(string); !ok || mn == "" {
+				return nil, logAndReturnError(logger, "moduleName is required and must be a valid string. It represents the name of the module to retrieve detailed information about", nil)
 			}
-			var detailData string
-			for _, moduleNamespace := range providerToNamespaceModule[moduleProvider.(string)].([]interface{}) {
-				response, err := getModuleDetails(registryClient, moduleNamespace, moduleName, moduleProvider, nil, logger)
+
+			if mp, ok := moduleProvider.(string); !ok || mp == "" {
+				return nil, logAndReturnError(logger, "moduleProvider is required and must be a valid string. It represents the provider associated with the module, typically the name of the provider where most resources are deployed like aws, azurerm, google etc. .", nil)
+			}
+
+			potentialModuleNamespaces, ok := providerToNamespaceModule[moduleProvider.(string)]
+			if !ok {
+				// If the moduleProvider is not found in the map, we try the moduleProvider name as the namespace
+				potentialModuleNamespaces = []interface{}{moduleProvider.(string)}
+			}
+
+			var moduleData string
+			for _, moduleNamespace := range potentialModuleNamespaces.([]interface{}) {
+				moduleDetail := ModuleDetail{
+					ModuleName:      moduleName.(string),
+					ModuleNamespace: moduleNamespace.(string),
+					ModuleProvider:  moduleProvider.(string),
+				}
+				response, err := getModuleDetails(registryClient, moduleDetail, 0, logger)
 				if err != nil {
-					logger.Errorf("Error getting module details: %v", err)
-					return nil, err
+					return nil, logAndReturnError(logger, "getting module details", err)
 				}
 
-				content, err := UnmarshalTFModuleSingular(response)
+				content, err := UnmarshalModuleSingular(response)
 				if err != nil {
-					logger.Errorf("Error unmarshalling module details: %v", err)
-					return nil, err
+					return nil, logAndReturnError(logger, "unmarshalling module details", err)
 				}
-				detailData += *content
+				moduleData += *content
 			}
 
-			return mcp.NewToolResultText(detailData), nil
+			return mcp.NewToolResultText(moduleData), nil
 		}
-}
-
-func getModuleDetails(providerClient *http.Client, namespace interface{}, name interface{}, provider interface{}, currentOffset interface{}, logger *log.Logger) ([]byte, error) {
-	// Clean up the URI
-	uri := "modules"
-	if ns, ok := namespace.(string); ok && ns != "" {
-		if n, ok := name.(string); ok && n != "" {
-			uri = fmt.Sprintf("%s/%s/%s/%s", uri, ns, n, provider) // single module
-		} else {
-			uri = fmt.Sprintf("%s/%s", uri, ns) // plural module
-		}
-	}
-
-	if cO, ok := currentOffset.(float64); ok {
-		uri = fmt.Sprintf("%s?offset=%v", uri, cO)
-	}
-
-	response, err := sendRegistryCall(providerClient, "GET", uri, logger)
-	if err != nil {
-		logger.Errorf("Error sending request: %v", err)
-		return nil, fmt.Errorf("error sending request: %w", err)
-	}
-
-	// Return the filtered JSON as a string
-	return response, nil
-}
-
-func UnmarshalTFModulePlural(response []byte) (*string, error) {
-	// Get the list of modules
-	var terraformModules TerraformModules
-	err := json.Unmarshal(response, &terraformModules)
-	if err != nil {
-		return nil, fmt.Errorf("error unmarshalling modules: %w", err)
-	}
-
-	content := fmt.Sprintf("# %s modules\n\n", MODULE_BASE_PATH)
-	for _, module := range terraformModules.Data {
-		content += fmt.Sprintf("## %s \n\n**Description:** %s \n\n**Module Version:** %s\n\n**Namespace:** %s\n\n**Source:** %s\n\n",
-			module.Name,
-			module.Description,
-			module.Version,
-			module.Namespace,
-			module.Source,
-		)
-	}
-	return &content, nil
-}
-
-func UnmarshalTFModuleSingular(response []byte) (*string, error) {
-	// Handles one module
-	var terraformModules TerraformModuleVersionDetails
-	err := json.Unmarshal(response, &terraformModules)
-	if err != nil {
-		return nil, fmt.Errorf("error unmarshalling module: %w", err)
-	}
-
-	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("# %s/%s/%s\n\n", MODULE_BASE_PATH, terraformModules.Namespace, terraformModules.Name))
-	builder.WriteString(fmt.Sprintf("**Description:** %s\n\n", terraformModules.Description))
-	builder.WriteString(fmt.Sprintf("**Module Version:** %s\n\n", terraformModules.Version))
-	builder.WriteString(fmt.Sprintf("**Namespace:** %s\n\n", terraformModules.Namespace))
-	builder.WriteString(fmt.Sprintf("**Source:** %s\n\n", terraformModules.Source))
-
-	// Format Inputs
-	if len(terraformModules.Root.Inputs) > 0 {
-		builder.WriteString("### Inputs\n\n")
-		builder.WriteString("| Name | Type | Description | Default | Required |\n")
-		builder.WriteString("|---|---|---|---|---|\n")
-		for _, input := range terraformModules.Root.Inputs {
-			builder.WriteString(fmt.Sprintf("| %s | %s | %s | `%v` | %t |\n",
-				input.Name,
-				input.Type,
-				input.Description, // Consider cleaning potential newlines/markdown
-				input.Default,
-				input.Required,
-			))
-		}
-		builder.WriteString("\n")
-	}
-
-	// Format Outputs
-	if len(terraformModules.Root.Outputs) > 0 {
-		builder.WriteString("### Outputs\n\n")
-		builder.WriteString("| Name | Description |\n")
-		builder.WriteString("|---|---|\n")
-		for _, output := range terraformModules.Root.Outputs {
-			builder.WriteString(fmt.Sprintf("| %s | %s |\n",
-				output.Name,
-				output.Description, // Consider cleaning potential newlines/markdown
-			))
-		}
-		builder.WriteString("\n")
-	}
-
-	// Format Provider Dependencies
-	if len(terraformModules.Root.ProviderDependencies) > 0 {
-		builder.WriteString("### Provider Dependencies\n\n")
-		builder.WriteString("| Name | Namespace | Source | Version |\n")
-		builder.WriteString("|---|---|---|---|\n")
-		for _, dep := range terraformModules.Root.ProviderDependencies {
-			builder.WriteString(fmt.Sprintf("| %s | %s | %s | %s |\n",
-				dep.Name,
-				dep.Namespace,
-				dep.Source,
-				dep.Version,
-			))
-		}
-		builder.WriteString("\n")
-	}
-
-	// Format Examples
-	if len(terraformModules.Examples) > 0 {
-		builder.WriteString("### Examples\n\n")
-		for _, example := range terraformModules.Examples {
-			builder.WriteString(fmt.Sprintf("#### %s\n\n", example.Name))
-			// Optionally, include more details from example if needed, like inputs/outputs
-			// For now, just listing the name.
-			if example.Readme != "" {
-				builder.WriteString("**Readme:**\n\n")
-				// Append readme content, potentially needs markdown escaping/sanitization depending on source
-				builder.WriteString(example.Readme)
-				builder.WriteString("\n\n")
-			}
-		}
-		builder.WriteString("\n")
-	}
-
-	content := builder.String()
-	return &content, nil
 }

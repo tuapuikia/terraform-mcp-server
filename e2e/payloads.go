@@ -8,14 +8,14 @@ const (
 	CONST_TYPE_BOTH        ContentType = "both"
 )
 
-type ProviderTestCase struct {
+type RegistryTestCase struct {
 	TestShouldFail  bool                   `json:"testShouldFail"`
 	TestDescription string                 `json:"testDescription"`
 	TestContentType ContentType            `json:"testResourceOnly,omitempty"`
 	TestPayload     map[string]interface{} `json:"testPayload,omitempty"`
 }
 
-var providerDetailsTestCases = []ProviderTestCase{
+var providerDetailsTestCases = []RegistryTestCase{
 	{
 		TestShouldFail:  true,
 		TestDescription: "Testing with empty payload",
@@ -102,6 +102,107 @@ var providerDetailsTestCases = []ProviderTestCase{
 			"providerName":      "vaults",
 			"providerNamespace": "hashicorp",
 			"providerVersion":   "latest",
+		},
+	},
+}
+
+var listModulesTestCases = []RegistryTestCase{
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing listModules with no parameters",
+		TestPayload:     map[string]interface{}{},
+	},
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing listModules with moduleProvider 'aws' - no offset",
+		TestPayload: map[string]interface{}{
+			"moduleProvider": "aws",
+		},
+	},
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing listModules with moduleProvider 'google' and currentOffset 10",
+		TestPayload: map[string]interface{}{
+			"moduleProvider": "google",
+			"currentOffset":  10,
+		},
+	},
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing listModules with currentOffset 5 only",
+		TestPayload: map[string]interface{}{
+			"currentOffset": 5,
+		},
+	},
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing listModules with invalid currentOffset (negative)",
+		TestPayload: map[string]interface{}{
+			"currentOffset": -1,
+		},
+	},
+	{
+		TestShouldFail:  true,
+		TestDescription: "Testing listModules with a moduleProvider not in the map (e.g., 'unknownprovider')",
+		TestPayload: map[string]interface{}{
+			"moduleProvider": "unknownprovider",
+		},
+	},
+}
+
+var moduleDetailsTestCases = []RegistryTestCase{
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing moduleDetails with valid 'vpc' module for 'aws' provider",
+		TestPayload: map[string]interface{}{
+			"moduleName":     "vpc",
+			"moduleProvider": "aws",
+		},
+	},
+	{
+		TestShouldFail:  true,
+		TestDescription: "Testing moduleDetails missing moduleName",
+		TestPayload: map[string]interface{}{
+			"moduleProvider": "aws",
+		},
+	},
+	{
+		TestShouldFail:  true,
+		TestDescription: "Testing moduleDetails missing moduleProvider",
+		TestPayload: map[string]interface{}{
+			"moduleName": "vpc",
+		},
+	},
+	{
+		TestShouldFail:  true,
+		TestDescription: "Testing moduleDetails with empty moduleName",
+		TestPayload: map[string]interface{}{
+			"moduleName":     "",
+			"moduleProvider": "aws",
+		},
+	},
+	{
+		TestShouldFail:  true,
+		TestDescription: "Testing moduleDetails with empty moduleProvider",
+		TestPayload: map[string]interface{}{
+			"moduleName":     "vpc",
+			"moduleProvider": "",
+		},
+	},
+	{
+		TestShouldFail:  true,
+		TestDescription: "Testing moduleDetails with non-existent module 'nonexistentmodule' for 'aws' provider",
+		TestPayload: map[string]interface{}{
+			"moduleName":     "nonexistentmodule",
+			"moduleProvider": "aws",
+		},
+	},
+	{
+		TestShouldFail:  true, // Expecting empty or error, tool call might succeed but return no useful data
+		TestDescription: "Testing moduleDetails with moduleProvider 'unknownprovider'",
+		TestPayload: map[string]interface{}{
+			"moduleName":     "vpc",
+			"moduleProvider": "unknownprovider",
 		},
 	},
 }
