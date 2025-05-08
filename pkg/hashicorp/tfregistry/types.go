@@ -12,6 +12,12 @@ type ProviderDetail struct {
 	ProviderDataType  string
 }
 
+type ModuleDetail struct {
+	ModuleName      string
+	ModuleNamespace string
+	ModuleProvider  string
+}
+
 // TerraformModule represents the structure of a Terraform module list response.
 // Note: The API seems to return different structures, this one matches the
 // format where the top-level key is "modules".

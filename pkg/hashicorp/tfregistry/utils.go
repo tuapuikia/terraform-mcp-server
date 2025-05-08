@@ -21,14 +21,12 @@ func GetProviderList(providerClient *http.Client, providerType string, logger *l
 	uri := fmt.Sprintf("providers?filter[tier]=%s", providerType)
 	jsonData, err := sendRegistryCall(providerClient, "GET", uri, logger, "v2")
 	if err != nil {
-		logError(logger, fmt.Sprintf("%s provider API request", providerType), err)
-		return nil, err
+		return nil, logAndReturnError(logger, fmt.Sprintf("%s provider API request", providerType), err)
 	}
 
 	var providerListJson ProviderList
 	if err := json.Unmarshal(jsonData, &providerListJson); err != nil {
-		logError(logger, fmt.Sprintf("%s providers request unmarshalling", providerType), err)
-		return nil, err
+		return nil, logAndReturnError(logger, fmt.Sprintf("%s providers request unmarshalling", providerType), err)
 	}
 
 	providerDetails := make([]map[string]string, len(providerListJson.Data))
@@ -50,13 +48,11 @@ func GetProviderVersionID(registryClient *http.Client, namespace string, name st
 	uri := fmt.Sprintf("providers/%s/%s?include=provider-versions", namespace, name)
 	response, err := sendRegistryCall(registryClient, "GET", uri, logger, "v2")
 	if err != nil {
-		logError(logger, "provider version ID request", err)
-		return "", err
+		return "", logAndReturnError(logger, "provider version ID request", err)
 	}
 	var providerVersionList ProviderVersionList
 	if err := json.Unmarshal(response, &providerVersionList); err != nil {
-		logError(logger, "provider version ID request unmarshalling", err)
-		return "", err
+		return "", logAndReturnError(logger, "provider version ID request unmarshalling", err)
 	}
 	for _, providerVersion := range providerVersionList.Included {
 		if providerVersion.Attributes.Version == version {
@@ -75,8 +71,7 @@ func GetProviderOverviewDocs(registryClient *http.Client, providerVersionID stri
 	}
 	var providerOverview ProviderOverview
 	if err := json.Unmarshal(response, &providerOverview); err != nil {
-		logError(logger, "getting provider docs request unmarshalling", err)
-		return "", err
+		return "", logAndReturnError(logger, "getting provider docs request unmarshalling", err)
 	}
 
 	resourceContent := ""
@@ -84,26 +79,26 @@ func GetProviderOverviewDocs(registryClient *http.Client, providerVersionID stri
 		resourceContentNew, err := GetProviderResouceDocs(registryClient, providerOverviewPage.ID, logger)
 		resourceContent += resourceContentNew
 		if err != nil {
-			logError(logger, "getting provider resource docs looping", err)
-			return "", err
+			return "", logAndReturnError(logger, "getting provider resource docs looping", err)
 		}
 	}
 
 	return resourceContent, nil
 }
 
-func GetProviderDocs(registryClient *http.Client, providerVersionID string, logger *log.Logger) (string, error) {
+func GetProviderDocs(registryClient *http.Client, providerVersionID string, dataCategory string, logger *log.Logger) (string, error) {
 	// https://registry.terraform.io/v2/provider-versions/70800?include=provider-docs&filter[language]=hcl
-	// TODO: Implement the logic to filter ?filter[category]=resources
 	uri := fmt.Sprintf("provider-versions/%s?include=provider-docs&filter[language]=hcl", providerVersionID)
+	if dataCategory != "" {
+		uri += fmt.Sprintf("&filter[category]=%s", dataCategory)
+	}
 	response, err := sendRegistryCall(registryClient, "GET", uri, logger, "v2")
 	if err != nil {
 		return "", logAndReturnError(logger, "Error getting provider docs", err)
 	}
 	var providerVersionResponse ProviderVersionResponse
 	if err := json.Unmarshal(response, &providerVersionResponse); err != nil {
-		logError(logger, "Error getting provider docs request unmarshalling", err)
-		return "", err
+		return "", logAndReturnError(logger, "Error getting provider docs request unmarshalling", err)
 	}
 	content := fmt.Sprintf("# Provider: %s\n", providerVersionResponse.Data.Attributes.Description)
 	content += fmt.Sprintf("## Total downloads for provider version %s: %d\n\n", providerVersionResponse.Data.Attributes.Version, providerVersionResponse.Data.Attributes.Downloads)
@@ -111,8 +106,7 @@ func GetProviderDocs(registryClient *http.Client, providerVersionID string, logg
 	for _, providerDetails := range providerVersionResponse.Included {
 		resourceContent, err := GetProviderResouceDocs(registryClient, providerDetails.ID, logger)
 		if err != nil {
-			logError(logger, "Error getting provider resource docs", err)
-			return "", err
+			return "", logAndReturnError(logger, "Error getting provider resource docs", err)
 		}
 		content += fmt.Sprintf("%s \n\n", resourceContent)
 	}
@@ -128,7 +122,6 @@ func GetProviderResouceDocs(registryClient *http.Client, providerDocsID string, 
 	}
 	var providerServiceDetails ProviderResourceDetails
 	if err := json.Unmarshal(response, &providerServiceDetails); err != nil {
-		logError(logger, "Error unmarshalling provider service details", err)
 		return "", logAndReturnError(logger, "Error unmarshalling provider resource docs", err)
 	}
 	return providerServiceDetails.Data.Attributes.Content, nil
@@ -148,23 +141,17 @@ func GetLatestProviderVersion(providerClient *http.Client, providerNamespace, pr
 	uri := fmt.Sprintf("providers/%s/%s", providerNamespace, providerName)
 	jsonData, err := sendRegistryCall(providerClient, "GET", uri, logger, "v1")
 	if err != nil {
-		logError(logger, "latest provider version API request", err)
-		return "", err
+		return "", logAndReturnError(logger, "latest provider version API request", err)
 	}
 
 	var providerVersionLatest ProviderVersionLatest
 	if err := json.Unmarshal(jsonData, &providerVersionLatest); err != nil {
-		logError(logger, "provider versions request unmarshalling", err)
-		return "", err
+		return "", logAndReturnError(logger, "provider versions request unmarshalling", err)
 	}
 
 	logger.Debugf("Fetched latest provider version: %s", providerVersionLatest.Version)
 
 	return providerVersionLatest.Version, nil
-}
-
-func logError(logger *log.Logger, context string, err error) {
-	logger.Errorf("Error in %s: %v", context, err)
 }
 
 func GetProviderResourceDetails(client *http.Client, providerDetail ProviderDetail, serviceName string, logger *log.Logger) (string, error) {
@@ -231,25 +218,6 @@ func containsSlug(sourceName, slug string) (bool, error) {
 	return matched, nil
 }
 
-func GetModuleDetails(providerClient *http.Client, namespace string, name string, logger *log.Logger) ([]byte, string, error) {
-	// Clean up the URI
-	moduleUri := "registry://modules"
-	uri := "modules"
-	if namespace != "" {
-		moduleUri = fmt.Sprintf("%s/%s/%s", moduleUri, namespace, name)
-		uri = fmt.Sprintf("%s/%s/%s", uri, namespace, name)
-	}
-	// Get the provider versions
-	response, err := sendRegistryCall(providerClient, "GET", uri, logger)
-	if err != nil {
-		logger.Errorf("Error sending request: %v", err)
-		return nil, moduleUri, fmt.Errorf("error sending request: %w", err)
-	}
-
-	// Return the filtered JSON as a string
-	return response, moduleUri, nil
-}
-
 // isValidProviderVersionFormat checks if the provider version format is valid.
 func isValidProviderVersionFormat(version string) bool {
 	// Example regex for semantic versioning (e.g., "1.0.0", "1.0.0-beta").
@@ -299,8 +267,8 @@ func resolveProviderDetails(request mcp.CallToolRequest, registryClient *http.Cl
 			if providerNamespace != tryProviderNamespace {
 				tryProviderNamespace = fmt.Sprintf(`"%s" or the "%s"`, providerNamespace, tryProviderNamespace)
 			}
-			errMessage := fmt.Sprintf(`Error getting the "%s" provider, with version "%s" in the %s namespace, %s`, providerName, providerVersion, tryProviderNamespace, defaultErrorGuide)
-			return providerDetail, logAndReturnError(logger, errMessage, fmt.Errorf("%s", errMessage))
+			return providerDetail, logAndReturnError(logger, fmt.Sprintf(`Error getting the "%s" provider, 
+			with version "%s" in the %s namespace, %s`, providerName, providerVersion, tryProviderNamespace, defaultErrorGuide), nil)
 		}
 		providerNamespace = tryProviderNamespace // Update the namespace to hashicorp, if successful
 	}
@@ -315,6 +283,162 @@ func resolveProviderDetails(request mcp.CallToolRequest, registryClient *http.Cl
 	providerDetail.ProviderVersion = providerVersionValue
 	providerDetail.ProviderDataType = providerDataTypeValue
 	return providerDetail, nil
+}
+
+const MODULE_BASE_PATH = "registry://modules"
+
+var providerToNamespaceModule = map[string]interface{}{
+	"aws":      []interface{}{"aws-ia", "terraform-aws-modules"},
+	"azurerm":  []interface{}{"Azure", "aztfmod"},
+	"google":   []interface{}{"GoogleCloudPlatform", "terraform-google-modules"},
+	"ibm":      []interface{}{"ibm", "terraform-ibm-modules"},
+	"oracle":   []interface{}{"oracle", "oracle-terraform-modules"},
+	"alibaba":  []interface{}{"alibaba", "terraform-alicloud-modules"},
+	"aviatrix": []interface{}{"aviatrix", "terraform-aviatrix-modules"},
+}
+
+func GetModuleDetails(providerClient *http.Client, namespace string, name string, logger *log.Logger) ([]byte, string, error) {
+	// Clean up the URI
+	moduleUri := "registry://modules"
+	uri := "modules"
+	if namespace != "" {
+		moduleUri = fmt.Sprintf("%s/%s/%s", moduleUri, namespace, name)
+		uri = fmt.Sprintf("%s/%s/%s", uri, namespace, name)
+	}
+	// Get the provider versions
+	response, err := sendRegistryCall(providerClient, "GET", uri, logger)
+	if err != nil {
+		logger.Errorf("Error sending request: %v", err)
+		return nil, moduleUri, fmt.Errorf("error sending request: %w", err)
+	}
+
+	// Return the filtered JSON as a string
+	return response, moduleUri, nil
+}
+
+func getModuleDetails(providerClient *http.Client, moduleDetail ModuleDetail, currentOffset int, logger *log.Logger) ([]byte, error) {
+	// Clean up the URI
+	uri := "modules"
+	if ns := moduleDetail.ModuleNamespace; ns != "" {
+		if n := moduleDetail.ModuleName; n != "" {
+			uri = fmt.Sprintf("%s/%s/%s/%s", uri, ns, n, moduleDetail.ModuleProvider) // single module
+		} else {
+			uri = fmt.Sprintf("%s/%s", uri, ns) // plural module
+		}
+	}
+
+	uri = fmt.Sprintf("%s?offset=%v", uri, currentOffset)
+	response, err := sendRegistryCall(providerClient, "GET", uri, logger)
+	if err != nil {
+		return nil, logAndReturnError(logger, fmt.Sprintf("getting module(s) for provider %s, not found please provider a better provider name like aws, azurerm or google etc.", moduleDetail.ModuleProvider), err)
+	}
+
+	// Return the filtered JSON as a string
+	return response, nil
+}
+
+func UnmarshalTFModulePlural(response []byte) (*string, error) {
+	// Get the list of modules
+	var terraformModules TerraformModules
+	err := json.Unmarshal(response, &terraformModules)
+	if err != nil {
+		return nil, logAndReturnError(nil, "unmarshalling modules", err)
+	}
+
+	content := fmt.Sprintf("# %s modules\n\n", MODULE_BASE_PATH)
+	for _, module := range terraformModules.Data {
+		content += fmt.Sprintf("## %s \n\n**Description:** %s \n\n**Module Version:** %s\n\n**Namespace:** %s\n\n**Source:** %s\n\n",
+			module.Name,
+			module.Description,
+			module.Version,
+			module.Namespace,
+			module.Source,
+		)
+	}
+	return &content, nil
+}
+
+func UnmarshalModuleSingular(response []byte) (*string, error) {
+	// Handles one module
+	var terraformModules TerraformModuleVersionDetails
+	err := json.Unmarshal(response, &terraformModules)
+	if err != nil {
+		return nil, logAndReturnError(nil, "unmarshalling module details", err)
+	}
+
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("# %s/%s/%s\n\n", MODULE_BASE_PATH, terraformModules.Namespace, terraformModules.Name))
+	builder.WriteString(fmt.Sprintf("**Description:** %s\n\n", terraformModules.Description))
+	builder.WriteString(fmt.Sprintf("**Module Version:** %s\n\n", terraformModules.Version))
+	builder.WriteString(fmt.Sprintf("**Namespace:** %s\n\n", terraformModules.Namespace))
+	builder.WriteString(fmt.Sprintf("**Source:** %s\n\n", terraformModules.Source))
+
+	// Format Inputs
+	if len(terraformModules.Root.Inputs) > 0 {
+		builder.WriteString("### Inputs\n\n")
+		builder.WriteString("| Name | Type | Description | Default | Required |\n")
+		builder.WriteString("|---|---|---|---|---|\n")
+		for _, input := range terraformModules.Root.Inputs {
+			builder.WriteString(fmt.Sprintf("| %s | %s | %s | `%v` | %t |\n",
+				input.Name,
+				input.Type,
+				input.Description, // Consider cleaning potential newlines/markdown
+				input.Default,
+				input.Required,
+			))
+		}
+		builder.WriteString("\n")
+	}
+
+	// Format Outputs
+	if len(terraformModules.Root.Outputs) > 0 {
+		builder.WriteString("### Outputs\n\n")
+		builder.WriteString("| Name | Description |\n")
+		builder.WriteString("|---|---|\n")
+		for _, output := range terraformModules.Root.Outputs {
+			builder.WriteString(fmt.Sprintf("| %s | %s |\n",
+				output.Name,
+				output.Description, // Consider cleaning potential newlines/markdown
+			))
+		}
+		builder.WriteString("\n")
+	}
+
+	// Format Provider Dependencies
+	if len(terraformModules.Root.ProviderDependencies) > 0 {
+		builder.WriteString("### Provider Dependencies\n\n")
+		builder.WriteString("| Name | Namespace | Source | Version |\n")
+		builder.WriteString("|---|---|---|---|\n")
+		for _, dep := range terraformModules.Root.ProviderDependencies {
+			builder.WriteString(fmt.Sprintf("| %s | %s | %s | %s |\n",
+				dep.Name,
+				dep.Namespace,
+				dep.Source,
+				dep.Version,
+			))
+		}
+		builder.WriteString("\n")
+	}
+
+	// Format Examples
+	if len(terraformModules.Examples) > 0 {
+		builder.WriteString("### Examples\n\n")
+		for _, example := range terraformModules.Examples {
+			builder.WriteString(fmt.Sprintf("#### %s\n\n", example.Name))
+			// Optionally, include more details from example if needed, like inputs/outputs
+			// For now, just listing the name.
+			if example.Readme != "" {
+				builder.WriteString("**Readme:**\n\n")
+				// Append readme content, potentially needs markdown escaping/sanitization depending on source
+				builder.WriteString(example.Readme)
+				builder.WriteString("\n\n")
+			}
+		}
+		builder.WriteString("\n")
+	}
+
+	content := builder.String()
+	return &content, nil
 }
 
 func sendRegistryCall(client *http.Client, method string, uri string, logger *log.Logger, callOptions ...string) ([]byte, error) {
@@ -353,6 +477,9 @@ func sendRegistryCall(client *http.Client, method string, uri string, logger *lo
 }
 
 func logAndReturnError(logger *log.Logger, context string, err error) error {
+	if err == nil {
+		err = fmt.Errorf("%s", context)
+	}
 	logger.Errorf("Error in %s: %v", context, err)
 	return err
 }

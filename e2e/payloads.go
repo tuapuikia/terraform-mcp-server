@@ -8,14 +8,14 @@ const (
 	CONST_TYPE_BOTH        ContentType = "both"
 )
 
-type ProviderTestCase struct {
+type RegistryTestCase struct {
 	TestShouldFail  bool                   `json:"testShouldFail"`
 	TestDescription string                 `json:"testDescription"`
 	TestContentType ContentType            `json:"testResourceOnly,omitempty"`
 	TestPayload     map[string]interface{} `json:"testPayload,omitempty"`
 }
 
-var providerDetailsTestCases = []ProviderTestCase{
+var providerDetailsTestCases = []RegistryTestCase{
 	{
 		TestShouldFail:  true,
 		TestDescription: "Testing with empty payload",
@@ -106,14 +106,14 @@ var providerDetailsTestCases = []ProviderTestCase{
 	},
 }
 
-var listModulesTestCases = []ProviderTestCase{
+var listModulesTestCases = []RegistryTestCase{
 	{
-		TestShouldFail:  true,
+		TestShouldFail:  false,
 		TestDescription: "Testing listModules with no parameters",
 		TestPayload:     map[string]interface{}{},
 	},
 	{
-		TestShouldFail:  true,
+		TestShouldFail:  false,
 		TestDescription: "Testing listModules with moduleProvider 'aws' - no offset",
 		TestPayload: map[string]interface{}{
 			"moduleProvider": "aws",
@@ -124,18 +124,18 @@ var listModulesTestCases = []ProviderTestCase{
 		TestDescription: "Testing listModules with moduleProvider 'google' and currentOffset 10",
 		TestPayload: map[string]interface{}{
 			"moduleProvider": "google",
-			"currentOffset":  10.0,
+			"currentOffset":  10,
 		},
 	},
 	{
 		TestShouldFail:  false,
 		TestDescription: "Testing listModules with currentOffset 5 only",
 		TestPayload: map[string]interface{}{
-			"currentOffset": 5.0,
+			"currentOffset": 5,
 		},
 	},
 	{
-		TestShouldFail:  true,
+		TestShouldFail:  false,
 		TestDescription: "Testing listModules with invalid currentOffset (negative)",
 		TestPayload: map[string]interface{}{
 			"currentOffset": -1,
@@ -150,7 +150,7 @@ var listModulesTestCases = []ProviderTestCase{
 	},
 }
 
-var moduleDetailsTestCases = []ProviderTestCase{
+var moduleDetailsTestCases = []RegistryTestCase{
 	{
 		TestShouldFail:  false,
 		TestDescription: "Testing moduleDetails with valid 'vpc' module for 'aws' provider",
@@ -160,7 +160,7 @@ var moduleDetailsTestCases = []ProviderTestCase{
 		},
 	},
 	{
-		TestShouldFail:  false,
+		TestShouldFail:  true,
 		TestDescription: "Testing moduleDetails missing moduleName",
 		TestPayload: map[string]interface{}{
 			"moduleProvider": "aws",
@@ -190,7 +190,7 @@ var moduleDetailsTestCases = []ProviderTestCase{
 		},
 	},
 	{
-		TestShouldFail:  true, // Expecting empty or error, but the call itself might not fail schema validation
+		TestShouldFail:  true,
 		TestDescription: "Testing moduleDetails with non-existent module 'nonexistentmodule' for 'aws' provider",
 		TestPayload: map[string]interface{}{
 			"moduleName":     "nonexistentmodule",

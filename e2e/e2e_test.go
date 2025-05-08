@@ -138,7 +138,45 @@ func TestE2E(t *testing.T) {
 		})
 	}
 
-	// TODO: split the tests into multiple files
+	for _, testCase := range listModulesTestCases {
+		t.Run("CallTool listModules", func(t *testing.T) {
+			// t.Parallel()
+			t.Logf("TOOL listModules %s", testCase.TestDescription)
+			t.Logf("Test payload: %v", testCase.TestPayload)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			request := mcp.CallToolRequest{}
+			request.Params.Name = "listModules"
+			request.Params.Arguments = testCase.TestPayload
+
+			response, err := client.CallTool(ctx, request)
+			if testCase.TestShouldFail {
+				require.Error(t, err, "expected to call 'listModules' tool with error")
+				t.Logf("Error: %v", err)
+			} else {
+				require.NoError(t, err, "expected to call 'listModules' tool successfully")
+				require.False(t, response.IsError, "expected result not to be an error")
+				// For listModules, we expect one content item which is the text list of modules.
+				// If no modules are found for a valid query, it might return an empty list or a message,
+				// but the call itself should succeed.
+				if len(response.Content) > 0 { // Check if content is present before trying to access it
+					textContent, ok := response.Content[0].(mcp.TextContent)
+					require.True(t, ok, "expected content to be of type TextContent")
+					t.Logf("Content length: %d", len(textContent.Text))
+					// Add more specific content assertions here if needed, e.g., check for "module" keyword
+					// require.Contains(t, textContent.Text, "module", "expected content to contain 'module'")
+				} else {
+					// Handle cases where successful calls might return no content items (e.g. empty list of modules)
+					// This depends on the expected behavior of the listModules tool for such cases.
+					// For now, we just log it.
+					t.Log("Response content is empty for successful call.")
+				}
+			}
+		})
+	}
+
 	for _, testCase := range moduleDetailsTestCases {
 		t.Run("CallTool moduleDetails", func(t *testing.T) {
 			// t.Parallel()
@@ -173,46 +211,6 @@ func TestE2E(t *testing.T) {
 				} else if testCase.TestContentType == CONST_TYPE_BOTH {
 					require.Contains(t, textContent.Text, "resource", "expected content to contain resources")
 					require.Contains(t, textContent.Text, "data source", "expected content to contain data-sources")
-				}
-			}
-		})
-	}
-
-	for _, testCase := range listModulesTestCases {
-		t.Run("CallTool listModules", func(t *testing.T) {
-			// t.Parallel()
-			t.Logf("TOOL listModules %s", testCase.TestDescription)
-			t.Logf("Test payload: %v", testCase.TestPayload)
-
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-
-			request := mcp.CallToolRequest{}
-			request.Params.Name = "listModules"
-			request.Params.Arguments = testCase.TestPayload
-
-			response, err := client.CallTool(ctx, request)
-			if testCase.TestShouldFail {
-				require.Error(t, err, "expected to call 'listModules' tool with error")
-				t.Logf("Error: %v", err)
-				// require.True(t, response.IsError, "expected result to be an error") // Optionally check response.IsError if the MCP client sets it on client-side validation failures
-			} else {
-				require.NoError(t, err, "expected to call 'listModules' tool successfully")
-				require.False(t, response.IsError, "expected result not to be an error")
-				// For listModules, we expect one content item which is the text list of modules.
-				// If no modules are found for a valid query, it might return an empty list or a message,
-				// but the call itself should succeed.
-				if len(response.Content) > 0 { // Check if content is present before trying to access it
-					textContent, ok := response.Content[0].(mcp.TextContent)
-					require.True(t, ok, "expected content to be of type TextContent")
-					t.Logf("Content length: %d", len(textContent.Text))
-					// Add more specific content assertions here if needed, e.g., check for "module" keyword
-					// require.Contains(t, textContent.Text, "module", "expected content to contain 'module'")
-				} else {
-					// Handle cases where successful calls might return no content items (e.g. empty list of modules)
-					// This depends on the expected behavior of the listModules tool for such cases.
-					// For now, we just log it.
-					t.Log("Response content is empty for successful call.")
 				}
 			}
 		})
