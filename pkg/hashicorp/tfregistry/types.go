@@ -333,20 +333,22 @@ type ProviderResourceDetails struct {
 // ProviderOverview represents the structure of the provider overview (how to use it) response.
 // https://registry.terraform.io/v2/provider-docs?filter[provider-version]=70800&filter[category]=overview&filter[slug]=index
 type ProviderOverview struct {
-	Data []struct {
-		Type       string `json:"type"`
-		ID         string `json:"id"`
-		Attributes struct {
-			Category    string `json:"category"`
-			Language    string `json:"language"`
-			Path        string `json:"path"`
-			Slug        string `json:"slug"`
-			Subcategory any    `json:"subcategory"`
-			Title       string `json:"title"`
-			Truncated   bool   `json:"truncated"`
-		} `json:"attributes"`
-		Links struct {
-			Self string `json:"self"`
-		} `json:"links"`
-	} `json:"data"`
+	Data []ProviderDocData `json:"data"`
+}
+
+type ProviderDocData struct {
+	Type       string `json:"type"`
+	ID         string `json:"id"`
+	Attributes struct {
+		Category    string      `json:"category"`
+		Language    string      `json:"language"`
+		Path        string      `json:"path"`
+		Slug        string      `json:"slug"`
+		Subcategory interface{} `json:"subcategory"`
+		Title       string      `json:"title"`
+		Truncated   bool        `json:"truncated"`
+	} `json:"attributes"`
+	Links struct {
+		Self string `json:"self"`
+	} `json:"links"`
 }

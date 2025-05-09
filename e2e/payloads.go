@@ -6,12 +6,15 @@ const (
 	CONST_TYPE_RESOURCE    ContentType = "resources"
 	CONST_TYPE_DATA_SOURCE ContentType = "data-sources"
 	CONST_TYPE_BOTH        ContentType = "both"
+	CONST_TYPE_GUIDES      ContentType = "guides"
+	CONST_TYPE_FUNCTIONS   ContentType = "functions"
+	CONST_TYPE_OVERVIEW    ContentType = "overview"
 )
 
 type RegistryTestCase struct {
 	TestShouldFail  bool                   `json:"testShouldFail"`
 	TestDescription string                 `json:"testDescription"`
-	TestContentType ContentType            `json:"testResourceOnly,omitempty"`
+	TestContentType ContentType            `json:"testContentType,omitempty"`
 	TestPayload     map[string]interface{} `json:"testPayload,omitempty"`
 }
 
@@ -102,6 +105,42 @@ var providerDetailsTestCases = []RegistryTestCase{
 			"providerName":      "vaults",
 			"providerNamespace": "hashicorp",
 			"providerVersion":   "latest",
+		},
+	},
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing guides documentation with v2 API",
+		TestContentType: CONST_TYPE_GUIDES,
+		TestPayload: map[string]interface{}{
+			"providerName":      "aws",
+			"providerNamespace": "hashicorp",
+			"providerVersion":   "latest",
+			"providerDataType":  "guides",
+			"serviceName":       "custom-service-endpoints",
+		},
+	},
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing functions documentation with v2 API",
+		TestContentType: CONST_TYPE_FUNCTIONS,
+		TestPayload: map[string]interface{}{
+			"providerName":      "google",
+			"providerNamespace": "hashicorp",
+			"providerVersion":   "latest",
+			"providerDataType":  "functions",
+			"serviceName":       "name_from_id",
+		},
+	},
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing overview documentation with v2 API",
+		TestContentType: CONST_TYPE_OVERVIEW,
+		TestPayload: map[string]interface{}{
+			"providerName":      "google",
+			"providerNamespace": "hashicorp",
+			"providerVersion":   "latest",
+			"providerDataType":  "overview",
+			"serviceName":       "index",
 		},
 	},
 }
