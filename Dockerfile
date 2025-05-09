@@ -18,7 +18,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build go mod download
 COPY . ./
 # Build the server
 RUN --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${VERSION} -X main.commit=$(git rev-parse HEAD) -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    -o terraform-mcp-server cmd/terraform-mcp-server/main.go
+    -o terraform-mcp-server ./cmd/terraform-mcp-server
 
 # Make a stage to run the app
 FROM gcr.io/distroless/base-debian12
