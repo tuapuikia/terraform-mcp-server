@@ -3,7 +3,6 @@ module terraform-mcp-server
 go 1.24.2
 
 require (
-	github.com/github/github-mcp-server v0.2.1
 	github.com/hashicorp/go-tfe v1.78.0
 	github.com/mark3labs/mcp-go v0.25.0
 	github.com/sirupsen/logrus v1.9.3
@@ -16,6 +15,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
+	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect

@@ -16,8 +16,7 @@ import (
 	// "github.com/google/go-github/v69/github" // Removed github client
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
-
-	"terraform-mcp-server/pkg/hashicorp" // Add import for hashicorp package
+	// Add import for hashicorp package
 )
 
 // --- TFE Tools --- //
@@ -46,9 +45,9 @@ func ListWorkspaces(tfeClient *tfe.Client) (tool mcp.Tool, handler server.ToolHa
 			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			orgName, err := hashicorp.RequiredParam[string](request, "organization")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+			orgName, ok := request.Params.Arguments["organization"].(string)
+			if !ok {
+				return mcp.NewToolResultError("organization is required"), nil
 			}
 
 			opts := &tfe.WorkspaceListOptions{
