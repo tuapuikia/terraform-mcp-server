@@ -17,7 +17,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 
-	"hcp-terraform-mcp-server/pkg/hashicorp" // Add import for hashicorp package
+	"terraform-mcp-server/pkg/hashicorp" // Add import for hashicorp package
 )
 
 // --- TFE Tools --- //

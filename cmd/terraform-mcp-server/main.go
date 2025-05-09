@@ -6,15 +6,15 @@ package main
 import (
 	"context"
 	"fmt"
-	"hcp-terraform-mcp-server/pkg/hashicorp"
-	"hcp-terraform-mcp-server/pkg/hashicorp/tfenterprise"
-	"hcp-terraform-mcp-server/pkg/hashicorp/tfregistry"
 	"io"
 	stdlog "log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"terraform-mcp-server/pkg/hashicorp"
+	"terraform-mcp-server/pkg/hashicorp/tfenterprise"
+	"terraform-mcp-server/pkg/hashicorp/tfregistry"
 
 	// TODO: Refactor dependent packages to use TFE client instead of GitHub client
 
@@ -44,8 +44,8 @@ func InitRegistryClient() *http.Client {
 var (
 	rootCmd = &cobra.Command{
 		Use:     "server",
-		Short:   "HCP Terraform MCP Server",
-		Long:    `A HCP Terraform MCP server that handles various tools and resources.`,
+		Short:   "Terraform MCP Server",
+		Long:    `A Terraform MCP server that handles various tools and resources.`,
 		Version: fmt.Sprintf("Version: %s\nCommit: %s\nBuild Date: %s", version, commit, date),
 	}
 
@@ -171,7 +171,7 @@ func runStdioServer(cfg runConfig) error {
 	}()
 
 	// Output github-mcp-server string // TODO: Update this message?
-	_, _ = fmt.Fprintf(os.Stderr, "HCP Terraform MCP Server running on stdio\n")
+	_, _ = fmt.Fprintf(os.Stderr, "Terraform MCP Server running on stdio\n")
 
 	// Wait for shutdown signal
 	select {

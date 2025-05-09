@@ -1,71 +1,97 @@
-# HashiCorp Terraform MCP Server
+# Terraform MCP Server
 
-Terraform MCP Server is designed to assist DevOps practitioners in creating reliable Infrastructure as Code (IaC) automation with speed and ensuring recommended patterns.
+The Terraform MCP Server is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction)
+server that provides seamless integration with Terraform Registry APIs, enabling advanced
+automation and interaction capabilities for Infrastructure as Code (IaC) development.
 
-### Sample prompts
+## Use Cases
+
+- Automating Terraform provider and module discovery
+- Extracting and analyzing data from Terraform Registry
+- Getting detailed information about provider resources and data sources
+- Exploring and understanding Terraform modules
+
+## Prerequisites
+
+1. To run the server in a container, you will need to have [Docker](https://www.docker.com/) installed.
+2. Once Docker is installed, you will also need to ensure Docker is running.
+
+> **Note**: Currently, the Docker image needs to be built locally as it's not yet available in Docker Hub. We plan to release the official Docker image through HashiCorp's Docker Hub registry in the future. Follow [issue/31](https://github.com/hashicorp/terraform-mcp-server/issues/31) for updates
+
+## Building the Docker Image
+
+Before using the server, you need to build the Docker image locally:
+
+1. Clone the repository:
+```bash
+git clone https://github.com/hashicorp/terraform-mcp-server.git
+cd terraform-mcp-server
 ```
-can you help deploy an ec2 instance in aws?
-give me information about `google_compute_disk`
-give me information about the aws provider
-can you help me deploy stuff with the azure provider?
+
+2. Build the Docker image:
+```bash
+make docker-build
 ```
 
-### Build from Docker
-```
-docker build -t hcp-terraform-mcp-server .
-```
+This will create a local Docker image that you can use in the following configurations.
 
-If you plan to push the Docker image to a Docker registry, update the image reference accordingly. The current configuration is designed for local use.
+## Installation
 
-#### Usage with Claude Desktop
-```JSON
+### Usage with VS Code
+
+Add the following JSON block to your User Settings (JSON) file in VS Code. You can do this by pressing `Ctrl + Shift + P` and typing `Preferences: Open User Settings (JSON)`.
+
+```json
 {
-  "mcpServers": {
-    "hcp-terraform": {
-      "command": "docker",
-      "args": [
-        "run",
-        "-i",
-        "--rm",
-        "-e",
-        "HCP_TFE_TOKEN",
-        "docker.io/library/hcp-terraform-mcp-server"
-      ],
-      "env": {
-        "HCP_TFE_TOKEN": "<YOUR_TOKEN>"
+  "mcp": {
+    "servers": {
+      "terraform": {
+        "command": "docker",
+        "args": [
+          "run",
+          "-i",
+          "--rm",
+          "terraform-mcp-server"
+        ]
       }
     }
   }
 }
 ```
 
-#### Usage with VS Code
-```JSON
+Optionally, you can add a similar example (i.e. without the mcp key) to a file called `.vscode/mcp.json` in your workspace. This will allow you to share the configuration with others.
+
+```json
 {
-  "mcp": {
-    "inputs": [
-      {
-        "type": "promptString",
-        "id": "hcp_tfe_token",
-        "description": "HCP Terraform API Token",
-        "password": true
-      }
-    ],
-    "servers": {
-      "hcp-terraform": {
-        "command": "docker",
-        "args": [
-          "run",
-          "-i",
-          "--rm",
-          "-e",
-          "HCP_TFE_TOKEN",
-          "docker.io/library/hcp-terraform-mcp-server"
-        ],
-        "env": {
-          "HCP_TFE_TOKEN": "${input:hcp_tfe_token}"
-        }
-      }
+  "servers": {
+    "terraform": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "terraform-mcp-server"
+      ]
+    }
+  }
+}
+```
+
+More about using MCP server tools in VS Code's [agent mode documentation](https://code.visualstudio.com/docs/copilot/chat/mcp-servers).
+
+### Usage with Claude Desktop
+
+```json
+{
+  "mcpServers": {
+    "terraform": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "terraform-mcp-server"
+      ]
     }
   }
 }
@@ -73,37 +99,75 @@ If you plan to push the Docker image to a Docker registry, update the image refe
 
 ### Build from source
 
-If you don't have Docker, you can use `go build` to build the binary in the
-`cmd/hcp-terraform-mcp-server` directory, and use the `hcp-terraform-mcp-server stdio` command with the `HCP_TFE_TOKEN` environment variable set to your token. To specify the output location of the build, use the `-o` flag. You should configure your server to use the built executable as its `command`. For example:
+If you don't have Docker, you can use `make build` to build the binary directly from source code. You should configure your server to use the built executable as its `command`. For example:
 
-#### Usage with Claude Desktop
-```JSON
-{
-  "mcpServers": {
-    "hcp-terraform": {
-      "command": "/path/to/hcp-terraform-mcp-server",
-      "args": ["stdio"],
-      "env": {
-        "HCP_TFE_TOKEN": "<YOUR_TOKEN>"
-      }
-    }
-  }
-}
-```
-
-#### Usage with VS Code
-```JSON
+```json
 {
   "mcp": {
     "servers": {
-      "hcp-terraform": {
-        "command": "/path/to/hcp-terraform-mcp-server",
-        "args": ["stdio"],
-        "env": {
-          "HCP_TFE_TOKEN": "<YOUR_TOKEN>"
-        }
+      "terraform": {
+        "command": "/path/to/terraform-mcp-server",
+        "args": ["stdio"]
       }
     }
   }
 }
 ```
+
+## Tool Configuration
+
+### Available Toolsets
+
+The following sets of tools are available:
+
+| Toolset      | Description                                    |
+| ------------ | ---------------------------------------------- |
+| `providers`  | Provider-related tools (resources, data sources) |
+| `modules`    | Module-related tools (search, details, examples) |
+
+## Development
+
+### Prerequisites
+- Go (check [go.mod](./go.mod) file for specific version)
+- Docker (optional, for container builds)
+
+### Running Tests
+```bash
+# Run all tests
+make test
+
+# Run e2e tests
+make test-e2e
+```
+
+### Available Make Commands
+```bash
+make build        # Build the binary
+make test         # Run all tests
+make test-e2e     # Run end-to-end tests
+make clean        # Remove build artifacts
+make deps         # Download dependencies
+make docker-build # Build docker image
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch
+3. Make your changes
+4. Run tests
+5. Submit a pull request
+
+## License
+
+This project is licensed under the terms of the MPL-2.0 open source license. Please refer to [LICENSE](./LICENSE) file for the full terms.
+
+## Security
+
+For security issues, please contact security@hashicorp.com or follow our [security policy](https://www.hashicorp.com/en/trust/security/vulnerability-management).
+
+## Support
+
+For bug reports and feature requests, please open an issue on GitHub.
+
+For general questions and discussions, open a GitHub Discussion.

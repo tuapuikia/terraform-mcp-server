@@ -1,4 +1,4 @@
-module hcp-terraform-mcp-server
+module terraform-mcp-server
 
 go 1.24.2
 

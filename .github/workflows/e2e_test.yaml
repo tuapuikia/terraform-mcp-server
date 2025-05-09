@@ -26,12 +26,12 @@ jobs:
           go-version-file: "go.mod"
 
       - name: Download dependencies
-        run: go mod download
+        run: make deps
 
       - name: Run unit tests
         env:
           HCP_TFE_TOKEN: ${{ github.input.HCP_TFE_TOKEN }}
-        run: go test -v ./e2e
+        run: make test-e2e
 
       - name: Build
-        run: go build -v ./cmd/hcp-terraform-mcp-server
+        run: make build
