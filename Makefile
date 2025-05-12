@@ -14,7 +14,7 @@ all: build
 
 # Build the binary
 build:
-	$(GO) build $(LDFLAGS) -o $(BINARY_NAME) cmd/terraform-mcp-server/main.go
+	$(GO) build $(LDFLAGS) -o $(BINARY_NAME) ./cmd/terraform-mcp-server
 
 # Run tests
 test:

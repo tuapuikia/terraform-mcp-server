@@ -69,7 +69,7 @@ func NewServer(version string, opts ...server.ServerOption) *server.MCPServer {
 
 	// Create a new MCP server
 	s := server.NewMCPServer(
-		"hcp-terraform-mcp-server",
+		"terraform-mcp-server",
 		version,
 		opts...,
 	)

@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
-	"hcp-terraform-mcp-server/pkg/hashicorp/tfenterprise"
-	"hcp-terraform-mcp-server/pkg/hashicorp/tfregistry"
 	"io"
 	stdlog "log"
 	"net/http"
 	"os"
+	"terraform-mcp-server/pkg/hashicorp/tfenterprise"
+	"terraform-mcp-server/pkg/hashicorp/tfregistry"
 
 	"github.com/mark3labs/mcp-go/server"
 	log "github.com/sirupsen/logrus"
