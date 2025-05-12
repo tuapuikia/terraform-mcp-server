@@ -30,7 +30,7 @@ func TestE2E(t *testing.T) {
 		"--rm",
 		"-e",
 		"HCP_TFE_TOKEN",
-		"cmd/hcp-terraform-mcp-server",
+		"terraform-mcp-server:test-e2e",
 	}
 	t.Log("Starting Stdio MCP client...")
 	client, err := mcpClient.NewStdioMCPClient(args[0], []string{}, args[1:]...)
@@ -57,7 +57,7 @@ func TestE2E(t *testing.T) {
 			result.ServerInfo.Name,
 			result.ServerInfo.Version,
 		)
-		require.Equal(t, "hcp-terraform-mcp-server", result.ServerInfo.Name)
+		require.Equal(t, "terraform-mcp-server", result.ServerInfo.Name)
 	})
 
 	for _, testCase := range providerDetailsTestCases {
@@ -220,8 +220,8 @@ func TestE2E(t *testing.T) {
 func buildDockerImage(t *testing.T) {
 	t.Log("Building Docker image for e2e tests...")
 
-	cmd := exec.Command("docker", "build", "-t", "cmd/hcp-terraform-mcp-server", ".")
-	cmd.Dir = ".." // Run this in the context of the root, where the Dockerfile is located.
+	cmd := exec.Command("make", "VERSION=test-e2e", "docker-build")
+	cmd.Dir = ".." // Run this in the context of the root, where the Makefile is located.
 	output, err := cmd.CombinedOutput()
 	require.NoError(t, err, "expected to build Docker image successfully, output: %s", string(output))
 }
