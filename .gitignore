@@ -1,4 +1,4 @@
-cmd/terraform-mcp-server/terraform-mcp-server
+cmd/terraform-mcp-server/terraform-mcp-server/terraform-mcp-server
 terraform-mcp-server
 cmd/mcpcurl/mcpcurl
 *.log
