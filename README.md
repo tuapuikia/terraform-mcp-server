@@ -11,6 +11,8 @@ automation and interaction capabilities for Infrastructure as Code (IaC) develop
 - Getting detailed information about provider resources and data sources
 - Exploring and understanding Terraform modules
 
+> **Caution:** The outputs and recommendations provided by the MCP server are generated dynamically and may vary based on the query, model, and connected MCP servers. Users should **thoroughly review all outputs/recommendations** to ensure they align with their organization's **security best practices**, **cost-efficiency goals**, and **compliance requirements** before implementation.
+
 ## Prerequisites
 
 1. To run the server in a container, you will need to have [Docker](https://www.docker.com/) installed.
