@@ -133,10 +133,10 @@ func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (t
 func SearchModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("searchModules",
 			mcp.WithDescription(`This tool helps users deploy complex services on cloud and on-premise environments by searching for a list of Terraform modules.
-			Please specify the provider name to utilize this tool. You can also use this tool without specifying a provider to get a list of all available modules. It's required that moduleDetails is used after searchModules to get the moduleID assuming that there's enough context to identify the module.`),
-			mcp.WithString("moduleName",
+			Please specify the provider name to utilize this tool. You can also use this tool without specifying a provider to get a list of all available modules. It's required that moduleDetails is used after searchModules to get the moduleID assuming that there's enough context to identify the module. Once the searchModules is used proceed with using moduleDetails with the appropriate moduleID that matches the context of the module. If no modules were find reattempt the search with a new moduleName query.`),
+			mcp.WithString("moduleQuery",
 				mcp.Required(),
-				mcp.Description("The name of the Terraform module to search for."),
+				mcp.Description("The query to search for Terraform modules."),
 			),
 			mcp.WithNumber("currentOffset",
 				mcp.Description("Current offset for pagination"),
@@ -144,30 +144,30 @@ func SearchModules(registryClient *http.Client, logger *log.Logger) (tool mcp.To
 				mcp.DefaultNumber(0),
 			),
 		), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			moduleName := request.Params.Arguments["moduleName"]
+			moduleQuery := request.Params.Arguments["moduleQuery"]
 			currentOffset := request.Params.Arguments["currentOffset"]
 			currentOffsetValue := 0
 			if _, ok := currentOffset.(int); ok {
 				currentOffsetValue = currentOffset.(int)
 			}
 
-			if mn, ok := moduleName.(string); !ok {
+			if mq, ok := moduleQuery.(string); !ok {
 				return nil, logAndReturnError(logger, "error finding the module name;", nil)
 			} else {
 				var modulesData, errMsg string
-				response, err := searchModules(registryClient, mn, currentOffsetValue, logger)
+				response, err := searchModules(registryClient, mq, currentOffsetValue, logger)
 				if err != nil {
-					errMsg = fmt.Sprintf("no module(s) found for moduleName: %s, error: %s", mn, err)
+					errMsg = fmt.Sprintf("no module(s) found for moduleName: %s, error: %s", mq, err)
 					return nil, logAndReturnError(logger, errMsg, nil)
 				} else {
-					modulesData, err = UnmarshalTFModulePlural(response)
+					modulesData, err = UnmarshalTFModulePlural(response, mq)
 					if err != nil {
-						return nil, logAndReturnError(logger, fmt.Sprintf("unmarshalling modules for moduleName: %s", mn), err)
+						return nil, logAndReturnError(logger, fmt.Sprintf("unmarshalling modules for moduleName: %s", mq), err)
 					}
 				}
 
 				if modulesData == "" {
-					errMsg = fmt.Sprintf("getting module(s), none found! query used: %s; error: %s", mn, errMsg)
+					errMsg = fmt.Sprintf("getting module(s), none found! query used: %s; error: %s", mq, errMsg)
 					return nil, logAndReturnError(logger, errMsg, nil)
 				}
 				return mcp.NewToolResultText(modulesData), nil
