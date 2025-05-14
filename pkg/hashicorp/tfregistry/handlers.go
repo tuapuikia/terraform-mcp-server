@@ -153,7 +153,7 @@ func SearchModules(registryClient *http.Client, logger *log.Logger) (tool mcp.To
 			}
 
 			if moduleName == nil {
-				response, err := GetModuleDetails(registryClient, ModuleDetail{}, currentOffsetValue, logger)
+				response, err := GetModuleDetails(registryClient, "", currentOffsetValue, logger)
 				if err != nil {
 					return nil, logAndReturnError(logger, "getting modules", err)
 				}
@@ -195,54 +195,32 @@ func ModuleDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.To
 	return mcp.NewTool("moduleDetails",
 			mcp.WithDescription(`This tool provides comprehensive details about a Terraform module, including inputs, outputs, and examples, enabling users to understand its effective usage. 
 		To use it, please specify the module name and its associated provider.`),
-			mcp.WithString("moduleName",
+			mcp.WithString("moduleID",
 				mcp.Required(),
-				mcp.Description("The name of the module to to access its detailed information."),
-			),
-			// TODO: We shouldn't need to include provider as an input, we could potentially grab the provider value from first GET and then perform a second GET with the provider value
-			mcp.WithString("moduleProvider",
-				mcp.Required(),
-				mcp.Description("The provider associated with the module, it's the name of the provider where most resources are deployed like aws, azurerm, google etc. used to determine the correct namespace or the publisher of the module."),
+				mcp.Description("The ID of the module to to access its detailed information."),
 			),
 		), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			moduleName := request.Params.Arguments["moduleName"]
-			moduleNamespace := request.Params.Arguments["moduleNamespace"]
-			moduleProvider := request.Params.Arguments["moduleProvider"]
+			moduleID := request.Params.Arguments["moduleID"]
 			
-			if mn, ok := moduleName.(string); !ok || mn == "" {
-				return nil, logAndReturnError(logger, "moduleName is required and must be a valid string. It represents the name of the module to retrieve detailed information about", nil)
-			} else if mp, ok := moduleProvider.(string); !ok || mp == "" {
-				return nil, logAndReturnError(logger, "moduleProvider is required and must be a valid string. It represents the provider associated with the module, typically the name of the provider where most resources are deployed like aws, azurerm, google etc. .", nil)
-			} else if mn, ok := moduleName.(string); !ok || mn == "" {
-				return nil, logAndReturnError(logger, "moduleName is required and must be a valid string. It represents the name of the module to retrieve detailed information about", nil)
-			} else if mnamespace, ok := moduleNamespace.(string); !ok || mnamespace == "" {
-				return nil, logAndReturnError(logger, "moduleNamespace is required and must be a valid string. It represents the namespace of the module to retrieve detailed information about", nil)
+			if mn, ok := moduleID.(string); !ok || mn == "" {
+				return nil, logAndReturnError(logger, "moduleID is required and must be a valid string. It represents the ID of the module to retrieve detailed information about", nil)
 			} else {
-					mp = strings.ToLower(mp)
-
-					var moduleData *string
-					var errMsg string
-					moduleDetail := ModuleDetail{
-						ModuleName:      moduleName.(string),
-						ModuleNamespace: moduleNamespace.(string),
-						ModuleProvider:  moduleProvider.(string),
-						}
-					response, err := GetModuleDetails(registryClient, moduleDetail, 0, logger)
-					if err != nil {
-						errMsg = fmt.Sprintf("no module(s) found for %v,", moduleDetail)
-						return nil, logAndReturnError(logger, errMsg, nil)
-					}
-
-					moduleData, err = UnmarshalModuleSingular(response)
-					if err != nil {
-						return nil, logAndReturnError(logger, "unmarshalling module details", err)
-					}
-
-					if moduleData == nil {
-						errMsg = fmt.Sprintf("getting module(s), none found! %s please provider a different moduleProvider", errMsg)
-						return nil, logAndReturnError(logger, errMsg, nil)
-					}
-					return mcp.NewToolResultText(*moduleData), nil
+				var moduleData *string
+				var errMsg string
+				response, err := GetModuleDetails(registryClient, moduleID.(string), 0, logger)
+				if err != nil {
+					errMsg = fmt.Sprintf("no module(s) found for %v,", moduleID.(string))
+					return nil, logAndReturnError(logger, errMsg, nil)
+				}
+				moduleData, err = UnmarshalModuleSingular(response)
+				if err != nil {
+					return nil, logAndReturnError(logger, "unmarshalling module details", err)
+				}
+				if moduleData == nil {
+					errMsg = fmt.Sprintf("getting module(s), none found! %s please provider a different moduleProvider", errMsg)
+					return nil, logAndReturnError(logger, errMsg, nil)
+				}
+				return mcp.NewToolResultText(*moduleData), nil
 				}
 		}
 }

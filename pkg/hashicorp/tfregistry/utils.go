@@ -340,21 +340,17 @@ func searchModules(providerClient *http.Client, moduleDetail ModuleDetail, curre
 	return response, nil
 }
 
-func GetModuleDetails(providerClient *http.Client, moduleDetail ModuleDetail, currentOffset int, logger *log.Logger) ([]byte, error) {
+func GetModuleDetails(providerClient *http.Client, moduleID string, currentOffset int, logger *log.Logger) ([]byte, error) {
 	uri := "modules"
-	if ns := moduleDetail.ModuleNamespace; ns != "" {
-		if n := moduleDetail.ModuleName; n != "" {
-			uri = fmt.Sprintf("%s/%s/%s/%s", uri, ns, n, moduleDetail.ModuleProvider) // single module
-		} else {
-			uri = fmt.Sprintf("%s/%s", uri, ns) // plural module
-		}
+	if moduleID != "" {
+		uri = fmt.Sprintf("modules/%s", moduleID)
 	}
 
 	uri = fmt.Sprintf("%s?offset=%v", uri, currentOffset)
 	response, err := sendRegistryCall(providerClient, "GET", uri, logger)
 	if err != nil {
 		// We shouldn't log the error here because we might hit a namespace that doesn't exist, it's better to let the caller handle it.
-		return nil, fmt.Errorf("getting module(s) for: %v, please provide a different provider name like aws, azurerm or google etc", moduleDetail)
+		return nil, fmt.Errorf("getting module(s) for: %v, please provide a different provider name like aws, azurerm or google etc", moduleID)
 	}
 
 	// Return the filtered JSON as a string
