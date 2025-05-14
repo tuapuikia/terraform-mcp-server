@@ -245,4 +245,12 @@ var moduleDetailsTestCases = []RegistryTestCase{
 			"moduleProvider": "vSphere",
 		},
 	},
+	{
+		TestShouldFail:  true,
+		TestDescription: "Testing listModules with vercel (no module exists)",
+		TestPayload: map[string]interface{}{
+			"moduleName":     "project",
+			"moduleProvider": "vercel",
+		},
+	},
 }
