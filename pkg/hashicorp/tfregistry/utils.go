@@ -323,15 +323,21 @@ func resolveProviderDetails(request mcp.CallToolRequest, registryClient *http.Cl
 
 const MODULE_BASE_PATH = "registry://modules"
 
-var providerToNamespaceModule = map[string][]string{
-	"aws":     {"aws-ia", "terraform-aws-modules"},
-	"azurerm": {"Azure", "aztfmod"},
-	"google":  {"GoogleCloudPlatform", "terraform-google-modules"},
-	"ibm":     {"ibm", "terraform-ibm-modules"},
-	"oracle":  {"oracle-terraform-modules"},
-	"oci":     {"oracle-terraform-modules"},
-	"alibaba": {"alibaba", "terraform-alicloud-modules"},
-	"vsphere": {"vsphere", "vmware", "terraform-vmware-modules"},
+func searchModules(providerClient *http.Client, moduleDetail ModuleDetail, currentOffset int, logger *log.Logger) ([]byte, error) {
+	uri := "modules"
+	if n := moduleDetail.ModuleName; n != "" {
+		uri = fmt.Sprintf("%s/search?q=%s", uri, n)
+	}
+
+	uri = fmt.Sprintf("%s&offset=%v", uri, currentOffset)
+	response, err := sendRegistryCall(providerClient, "GET", uri, logger)
+	if err != nil {
+		// We shouldn't log the error here because we might hit a namespace that doesn't exist, it's better to let the caller handle it.
+		return nil, fmt.Errorf("getting module(s) for: %v, please provide a different provider name like aws, azurerm or google etc", moduleDetail)
+	}
+
+	// Return the filtered JSON as a string
+	return response, nil
 }
 
 func GetModuleDetails(providerClient *http.Client, moduleDetail ModuleDetail, currentOffset int, logger *log.Logger) ([]byte, error) {
@@ -363,10 +369,13 @@ func UnmarshalTFModulePlural(response []byte) (*string, error) {
 		return nil, logAndReturnError(nil, "unmarshalling modules", err)
 	}
 
+	log.Debugf("terraformModules: %v", terraformModules)
+
 	content := fmt.Sprintf("# %s modules\n\n", MODULE_BASE_PATH)
 	for _, module := range terraformModules.Data {
-		content += fmt.Sprintf("## %s \n\n**Description:** %s \n\n**Module Version:** %s\n\n**Namespace:** %s\n\n**Source:** %s\n\n",
+		content += fmt.Sprintf("## %s \n\n**ID:** %s\n\n**Description:** %s \n\n**Module Version:** %s\n\n**Namespace:** %s\n\n**Source:** %s\n\n",
 			module.Name,
+			module.ID,
 			module.Description,
 			module.Version,
 			module.Namespace,

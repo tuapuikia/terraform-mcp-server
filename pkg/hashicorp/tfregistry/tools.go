@@ -13,6 +13,6 @@ import (
 func InitTools(hcServer *server.MCPServer, registryClient *http.Client, logger *log.Logger) {
 	hcServer.AddTool(ProviderDetails(registryClient, logger))
 	hcServer.AddTool(providerResourceDetails(registryClient, logger))
-	hcServer.AddTool(ListModules(registryClient, logger))
+	hcServer.AddTool(SearchModules(registryClient, logger))
 	hcServer.AddTool(ModuleDetails(registryClient, logger))
 }
