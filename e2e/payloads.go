@@ -229,4 +229,20 @@ var moduleDetailsTestCases = []RegistryTestCase{
 			"moduleProvider": "unknownprovider",
 		},
 	},
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing listModules with Azure (aks) - no offset",
+		TestPayload: map[string]interface{}{
+			"moduleName":     "aks",
+			"moduleProvider": "azurerm",
+		},
+	},
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing listModules with vSphere (using terraform-vmware-modules)",
+		TestPayload: map[string]interface{}{
+			"moduleName":     "vm",
+			"moduleProvider": "vSphere",
+		},
+	},
 }
