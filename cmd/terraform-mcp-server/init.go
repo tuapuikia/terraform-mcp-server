@@ -7,7 +7,6 @@ import (
 	stdlog "log"
 	"net/http"
 	"os"
-	"terraform-mcp-server/pkg/hashicorp/tfenterprise"
 	"terraform-mcp-server/pkg/hashicorp/tfregistry"
 
 	"github.com/mark3labs/mcp-go/server"
@@ -85,18 +84,4 @@ func serverInit(ctx context.Context, hcServer *server.MCPServer, logger *log.Log
 	}
 
 	return nil
-}
-
-func tfeInit(hcServer *server.MCPServer, logger *log.Logger) {
-	tfeToken := viper.GetString("HCP_TFE_TOKEN")
-	if tfeToken != "" {
-		tfeAddress := viper.GetString("HCP_TFE_ADDRESS") // Example: "https://app.terraform.io"
-		if tfeAddress == "" {
-			tfeAddress = "https://app.terraform.io"
-			logger.Warnf("HCP_TFE_ADDRESS not set, defaulting to %s", tfeAddress)
-		}
-		tfenterprise.Init(hcServer, tfeToken, tfeAddress)
-	} else {
-		logger.Warnf("HCP_TFE_TOKEN not set, defaulting to non-authenticated client")
-	}
 }

@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"os/exec"
 	"testing"
 	"time"
@@ -20,16 +19,11 @@ import (
 func TestE2E(t *testing.T) {
 	// Build the Docker image for the MCP server.
 	buildDockerImage(t)
-
-	e2eServerToken := os.Getenv("HCP_TFE_TOKEN")
-	t.Setenv("HCP_TFE_TOKEN", e2eServerToken) // The MCP Client merges the existing environment.
 	args := []string{
 		"docker",
 		"run",
 		"-i",
 		"--rm",
-		"-e",
-		"HCP_TFE_TOKEN",
 		"terraform-mcp-server:test-e2e",
 	}
 	t.Log("Starting Stdio MCP client...")

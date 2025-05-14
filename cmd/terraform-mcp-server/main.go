@@ -54,7 +54,6 @@ func runStdioServer(logger *log.Logger) error {
 	defer stop()
 
 	hcServer := NewServer(version)
-	tfeInit(hcServer, logger)
 	registryInit(hcServer, logger)
 
 	return serverInit(ctx, hcServer, logger)
