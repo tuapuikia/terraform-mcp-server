@@ -14,7 +14,6 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var version = "version"
@@ -34,7 +33,10 @@ var (
 		Short: "Start stdio server",
 		Long:  `Start a server that communicates via standard input/output streams using JSON-RPC messages.`,
 		Run: func(_ *cobra.Command, _ []string) {
-			logFile := viper.GetString("log-file")
+			logFile, err := rootCmd.PersistentFlags().GetString("log-file")
+			if err != nil {
+				stdlog.Fatal("Failed to get log file:", err)
+			}
 			logger, err := initLogger(logFile)
 			if err != nil {
 				stdlog.Fatal("Failed to initialize logger:", err)
