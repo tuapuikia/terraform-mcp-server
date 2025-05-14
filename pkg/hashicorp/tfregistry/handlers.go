@@ -26,8 +26,8 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 			mcp.WithString("providerName", mcp.Required(), mcp.Description("The name of the Terraform provider to perform the read or deployment operation.")),
 			mcp.WithString("providerNamespace", mcp.Required(), mcp.Description("The publisher of the Terraform provider, typically the name of the company, or their GitHub organization name that created the provider.")),
 			mcp.WithString("providerVersion", mcp.Description("The version of the Terraform provider to retrieve in the format 'x.y.z', or 'latest' to get the latest version.")),
-			mcp.WithString("providerDataType", mcp.Description("The source type of the Terraform provider to retrieve, can be 'resources' or 'data-sources'."),
-				mcp.Enum("resources", "data-sources")), // TODO: Limitation due to the v1 API, we need to implement v2
+			mcp.WithString("providerDataType", mcp.Description("The source type of the Terraform provider to retrieve."),
+				mcp.Enum("resources", "data-sources", "functions", "guides", "overview")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 
@@ -38,6 +38,22 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 				return nil, err
 			}
 
+			// Check if we need to use v2 API for guides, functions, or overview
+			if isV2ProviderDataType(providerDetail.ProviderDataType) {
+				content, err := GetProviderDocsV2(registryClient, providerDetail, logger)
+				if err != nil {
+					errMessage := fmt.Sprintf(`No %s documentation found for provider '%s' in the '%s' namespace, %s`,
+						providerDetail.ProviderDataType, providerDetail.ProviderName, providerDetail.ProviderNamespace, defaultErrorGuide)
+					return nil, logAndReturnError(logger, errMessage, err)
+				}
+
+				fullContent := fmt.Sprintf("# %s provider docs\n\n%s",
+					providerDetail.ProviderName, content)
+
+				return mcp.NewToolResultText(fullContent), nil
+			}
+
+			// For resources/data-sources, use the v1 API for better performance (single response)
 			uri := fmt.Sprintf("providers/%s/%s/%s", providerDetail.ProviderNamespace, providerDetail.ProviderName, providerDetail.ProviderVersion)
 			response, err := sendRegistryCall(registryClient, "GET", uri, logger)
 			if err != nil {
@@ -81,7 +97,7 @@ func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (t
 			mcp.WithString("providerNamespace", mcp.Required(), mcp.Description("The publisher of the Terraform provider, typically the name of the company or their GitHub organization name that created the provider.")),
 			mcp.WithString("providerVersion", mcp.Description("The version of the Terraform provider to retrieve in the format 'x.y.z', or 'latest' to get the latest version.")),
 			mcp.WithString("providerDataType", mcp.Description("The source type of the Terraform provider to retrieve, can be 'resources' or 'data-sources'."),
-				mcp.Enum("resources", "data-sources")),
+				mcp.Enum("resources", "data-sources", "functions", "guides")),
 			mcp.WithString("serviceName", mcp.Required(), mcp.Description("The name of the service or resource for read or deployment operations.")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -98,7 +114,12 @@ func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (t
 				return nil, err
 			}
 
-			content, err := GetProviderResourceDetails(registryClient, providerDetail, serviceName, logger)
+			var content string
+			if isV2ProviderDataType(providerDetail.ProviderDataType) {
+				content, err = GetProviderResourceDetailsV2(registryClient, providerDetail, serviceName, logger)
+			} else {
+				content, err = GetProviderResourceDetails(registryClient, providerDetail, serviceName, logger)
+			}
 			if err != nil {
 				return nil, err
 			}

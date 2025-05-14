@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -194,6 +195,40 @@ func GetProviderResourceDetails(client *http.Client, providerDetail ProviderDeta
 	return content, nil
 }
 
+// GetProviderResourceDetailsV2 fetches the provider resource details using v2 API with support for pagination using page numbers
+func GetProviderResourceDetailsV2(client *http.Client, providerDetail ProviderDetail, serviceName string, logger *log.Logger) (string, error) {
+	providerVersionID, err := GetProviderVersionID(client, providerDetail.ProviderNamespace, providerDetail.ProviderName, providerDetail.ProviderVersion, logger)
+	if err != nil {
+		return "", logAndReturnError(logger, "getting provider version ID", err)
+	}
+
+	uriPrefix := fmt.Sprintf("provider-docs?filter[provider-version]=%s&filter[category]=%s&filter[slug]=%s&filter[language]=hcl",
+		providerVersionID, providerDetail.ProviderDataType, serviceName)
+
+	docs, err := sendPaginatedRegistryCall[ProviderDocData](client, uriPrefix, logger)
+	if err != nil {
+		return "", err
+	}
+
+	var builder strings.Builder
+	for _, doc := range docs {
+		detailResp, err := sendRegistryCall(client, "GET", fmt.Sprintf("provider-docs/%s", doc.ID), logger, "v2")
+		if err != nil {
+			logger.Errorf("Error fetching provider-docs/%s: %v", doc.ID, err)
+			continue
+		}
+
+		var details ProviderResourceDetails
+		if err := json.Unmarshal(detailResp, &details); err != nil {
+			logger.Errorf("Error unmarshalling provider-docs/%s: %v", doc.ID, err)
+			continue
+		}
+		builder.WriteString(details.Data.Attributes.Content)
+	}
+
+	return builder.String(), nil
+}
+
 // containsSlug checks if the sourceName string contains the slug string anywhere within it.
 // It safely handles potential regex metacharacters in the slug.
 // TODO: include a unit test for this
@@ -227,7 +262,8 @@ func isValidProviderVersionFormat(version string) bool {
 }
 
 func isValidProviderDataType(providerDataType string) bool {
-	return providerDataType == "resources" || providerDataType == "data-sources" || providerDataType == "provider-guides"
+	validTypes := []string{"resources", "data-sources", "functions", "guides", "overview"}
+	return slices.Contains(validTypes, providerDataType)
 }
 
 func resolveProviderDetails(request mcp.CallToolRequest, registryClient *http.Client, defaultErrorGuide string, logger *log.Logger) (ProviderDetail, error) {
@@ -458,10 +494,76 @@ func sendRegistryCall(client *http.Client, method string, uri string, logger *lo
 	return body, nil
 }
 
+func sendPaginatedRegistryCall[T any](client *http.Client, uriPrefix string, logger *log.Logger) ([]T, error) {
+	var results []T
+	page := 1
+
+	for {
+		uri := fmt.Sprintf("%s&page[number]=%d", uriPrefix, page)
+		resp, err := sendRegistryCall(client, "GET", uri, logger, "v2")
+		if err != nil {
+			return nil, logAndReturnError(logger, fmt.Sprintf("calling paginated registry API (page %d)", page), err)
+		}
+
+		var wrapper struct {
+			Data []T `json:"data"`
+		}
+		if err := json.Unmarshal(resp, &wrapper); err != nil {
+			return nil, logAndReturnError(logger, fmt.Sprintf("unmarshalling page %d", page), err)
+		}
+
+		if len(wrapper.Data) == 0 {
+			break
+		}
+
+		results = append(results, wrapper.Data...)
+		page++
+	}
+
+	return results, nil
+}
+
 func logAndReturnError(logger *log.Logger, context string, err error) error {
 	if err == nil {
 		err = fmt.Errorf("%s", context)
 	}
 	logger.Errorf("Error in %s: %v", context, err)
 	return err
+}
+
+// GetProviderDocsV2 retrieves a list of documentation items for a specific provider category using v2 API with support for pagination using page numbers
+func GetProviderDocsV2(client *http.Client, providerDetail ProviderDetail, logger *log.Logger) (string, error) {
+	providerVersionID, err := GetProviderVersionID(client, providerDetail.ProviderNamespace, providerDetail.ProviderName, providerDetail.ProviderVersion, logger)
+	if err != nil {
+		return "", logAndReturnError(logger, "getting provider version ID", err)
+	}
+	category := providerDetail.ProviderDataType
+	if category == "overview" {
+		return GetProviderOverviewDocs(client, providerVersionID, logger)
+	}
+
+	uriPrefix := fmt.Sprintf("provider-docs?filter[provider-version]=%s&filter[category]=%s&filter[language]=hcl",
+		providerVersionID, category)
+
+	docs, err := sendPaginatedRegistryCall[ProviderDocData](client, uriPrefix, logger)
+	if err != nil {
+		return "", err
+	}
+
+	if len(docs) == 0 {
+		return "", fmt.Errorf("no %s documentation found for provider version %s", category, providerVersionID)
+	}
+
+	var builder strings.Builder
+	for _, doc := range docs {
+		builder.WriteString(fmt.Sprintf("## %s\n\n**ID:** %s\n\n**Category:** %s\n\n**Subcategory:** %v\n\n**Path:** %s\n\n",
+			doc.Attributes.Title, doc.ID, doc.Attributes.Category, doc.Attributes.Subcategory, doc.Attributes.Path))
+	}
+
+	return builder.String(), nil
+}
+
+func isV2ProviderDataType(dataType string) bool {
+	v2Categories := []string{"guides", "functions", "overview"}
+	return slices.Contains(v2Categories, dataType)
 }

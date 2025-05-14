@@ -87,6 +87,7 @@ func TestE2E(t *testing.T) {
 				require.True(t, ok, "expected content to be of type TextContent")
 				t.Logf("Content length: %d", len(textContent.Text))
 
+				// TODO: Implement a better way to test this
 				if testCase.TestContentType == CONST_TYPE_DATA_SOURCE {
 					require.NotContains(t, textContent.Text, "**Category:** resources", "expected content not to contain resources")
 				} else if testCase.TestContentType == CONST_TYPE_RESOURCE {
@@ -94,6 +95,10 @@ func TestE2E(t *testing.T) {
 				} else if testCase.TestContentType == CONST_TYPE_BOTH {
 					require.Contains(t, textContent.Text, "**Category:** resources", "expected content to contain resources")
 					require.Contains(t, textContent.Text, "**Category:** data-sources", "expected content to contain data-sources")
+				} else if testCase.TestContentType == CONST_TYPE_GUIDES {
+					require.Contains(t, textContent.Text, "**Category:** guides", "expected content to contain guides")
+				} else if testCase.TestContentType == CONST_TYPE_FUNCTIONS {
+					require.Contains(t, textContent.Text, "**Category:** functions", "expected content to contain functions")
 				}
 			}
 		})
@@ -133,6 +138,10 @@ func TestE2E(t *testing.T) {
 				} else if testCase.TestContentType == CONST_TYPE_BOTH {
 					require.Contains(t, textContent.Text, "resource", "expected content to contain resources")
 					require.Contains(t, textContent.Text, "data source", "expected content to contain data-sources")
+				} else if testCase.TestContentType == CONST_TYPE_GUIDES {
+					require.Contains(t, textContent.Text, "guide", "expected content to contain guide")
+				} else if testCase.TestContentType == CONST_TYPE_FUNCTIONS {
+					require.Contains(t, textContent.Text, "functions", "expected content to contain functions")
 				}
 			}
 		})
