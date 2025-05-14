@@ -327,10 +327,11 @@ const MODULE_BASE_PATH = "registry://modules"
 func searchModules(providerClient *http.Client, moduleQuery string, currentOffset int, logger *log.Logger) ([]byte, error) {
 	uri := "modules"
 	if moduleQuery != "" {
-		uri = fmt.Sprintf("%s/search?q='%s'", uri, url.PathEscape(moduleQuery))
+		uri = fmt.Sprintf("%s/search?q='%s'&offset=%v", uri, url.PathEscape(moduleQuery), currentOffset)
+	} else {
+		uri = fmt.Sprintf("%s?offset=%v", uri, currentOffset)
 	}
 
-	uri = fmt.Sprintf("%s&offset=%v", uri, currentOffset)
 	response, err := sendRegistryCall(providerClient, "GET", uri, logger)
 	if err != nil {
 		// We shouldn't log the error here because we might hit a namespace that doesn't exist, it's better to let the caller handle it.
@@ -403,6 +404,7 @@ func UnmarshalModuleSingular(response []byte) (string, error) {
 
 	var builder strings.Builder
 	builder.WriteString(fmt.Sprintf("# %s/%s/%s\n\n", MODULE_BASE_PATH, terraformModules.Namespace, terraformModules.Name))
+	builder.WriteString(fmt.Sprintf("**Description:** %s\n\n", terraformModules.Description))
 	builder.WriteString(fmt.Sprintf("**Module Version:** %s\n\n", terraformModules.Version))
 	builder.WriteString(fmt.Sprintf("**Namespace:** %s\n\n", terraformModules.Namespace))
 	builder.WriteString(fmt.Sprintf("**Source:** %s\n\n", terraformModules.Source))
@@ -410,12 +412,13 @@ func UnmarshalModuleSingular(response []byte) (string, error) {
 	// Format Inputs
 	if len(terraformModules.Root.Inputs) > 0 {
 		builder.WriteString("### Inputs\n\n")
-		builder.WriteString("| Name | Type | Default | Required |\n")
-		builder.WriteString("|-----|-----|-----|-----|\n")
+		builder.WriteString("| Name | Type | Description | Default | Required |\n")
+		builder.WriteString("|---|---|---|---|---|\n")
 		for _, input := range terraformModules.Root.Inputs {
 			builder.WriteString(fmt.Sprintf("| %s | %s | %s | `%v` | %t |\n",
 				input.Name,
 				input.Type,
+				input.Description, // Consider cleaning potential newlines/markdown
 				input.Default,
 				input.Required,
 			))

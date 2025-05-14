@@ -151,7 +151,7 @@ func SearchModules(registryClient *http.Client, logger *log.Logger) (tool mcp.To
 				currentOffsetValue = currentOffset.(int)
 			}
 
-			if mq, ok := moduleQuery.(string); !ok {
+			if mq, ok := moduleQuery.(string); !ok && moduleQuery == nil {
 				return nil, logAndReturnError(logger, "error finding the module name;", nil)
 			} else {
 				var modulesData, errMsg string
