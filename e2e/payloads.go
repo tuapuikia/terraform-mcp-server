@@ -151,6 +151,27 @@ var listModulesTestCases = []RegistryTestCase{
 			"moduleProvider": "unknownprovider",
 		},
 	},
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing listModules with vSphere (capitalized)",
+		TestPayload: map[string]interface{}{
+			"moduleProvider": "vSphere",
+		},
+	},
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing listModules with Aviatrix (handle terraform-provider-modules)",
+		TestPayload: map[string]interface{}{
+			"moduleProvider": "aviatrix",
+		},
+	},
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing listModules with oci",
+		TestPayload: map[string]interface{}{
+			"moduleProvider": "oci",
+		},
+	},
 }
 
 var moduleDetailsTestCases = []RegistryTestCase{
@@ -206,6 +227,30 @@ var moduleDetailsTestCases = []RegistryTestCase{
 		TestPayload: map[string]interface{}{
 			"moduleName":     "vpc",
 			"moduleProvider": "unknownprovider",
+		},
+	},
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing listModules with Azure (aks) - no offset",
+		TestPayload: map[string]interface{}{
+			"moduleName":     "aks",
+			"moduleProvider": "azurerm",
+		},
+	},
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing listModules with vSphere (using terraform-vmware-modules)",
+		TestPayload: map[string]interface{}{
+			"moduleName":     "vm",
+			"moduleProvider": "vSphere",
+		},
+	},
+	{
+		TestShouldFail:  true,
+		TestDescription: "Testing listModules with vercel (no module exists)",
+		TestPayload: map[string]interface{}{
+			"moduleName":     "project",
+			"moduleProvider": "vercel",
 		},
 	},
 }

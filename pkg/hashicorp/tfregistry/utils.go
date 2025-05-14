@@ -287,37 +287,18 @@ func resolveProviderDetails(request mcp.CallToolRequest, registryClient *http.Cl
 
 const MODULE_BASE_PATH = "registry://modules"
 
-var providerToNamespaceModule = map[string]interface{}{
-	"aws":      []interface{}{"aws-ia", "terraform-aws-modules"},
-	"azurerm":  []interface{}{"Azure", "aztfmod"},
-	"google":   []interface{}{"GoogleCloudPlatform", "terraform-google-modules"},
-	"ibm":      []interface{}{"ibm", "terraform-ibm-modules"},
-	"oracle":   []interface{}{"oracle", "oracle-terraform-modules"},
-	"alibaba":  []interface{}{"alibaba", "terraform-alicloud-modules"},
-	"aviatrix": []interface{}{"aviatrix", "terraform-aviatrix-modules"},
+var providerToNamespaceModule = map[string][]string{
+	"aws":     {"aws-ia", "terraform-aws-modules"},
+	"azurerm": {"Azure", "aztfmod"},
+	"google":  {"GoogleCloudPlatform", "terraform-google-modules"},
+	"ibm":     {"ibm", "terraform-ibm-modules"},
+	"oracle":  {"oracle-terraform-modules"},
+	"oci":     {"oracle-terraform-modules"},
+	"alibaba": {"alibaba", "terraform-alicloud-modules"},
+	"vsphere": {"vsphere", "vmware", "terraform-vmware-modules"},
 }
 
-func GetModuleDetails(providerClient *http.Client, namespace string, name string, logger *log.Logger) ([]byte, string, error) {
-	// Clean up the URI
-	moduleUri := "registry://modules"
-	uri := "modules"
-	if namespace != "" {
-		moduleUri = fmt.Sprintf("%s/%s/%s", moduleUri, namespace, name)
-		uri = fmt.Sprintf("%s/%s/%s", uri, namespace, name)
-	}
-	// Get the provider versions
-	response, err := sendRegistryCall(providerClient, "GET", uri, logger)
-	if err != nil {
-		logger.Errorf("Error sending request: %v", err)
-		return nil, moduleUri, fmt.Errorf("error sending request: %w", err)
-	}
-
-	// Return the filtered JSON as a string
-	return response, moduleUri, nil
-}
-
-func getModuleDetails(providerClient *http.Client, moduleDetail ModuleDetail, currentOffset int, logger *log.Logger) ([]byte, error) {
-	// Clean up the URI
+func GetModuleDetails(providerClient *http.Client, moduleDetail ModuleDetail, currentOffset int, logger *log.Logger) ([]byte, error) {
 	uri := "modules"
 	if ns := moduleDetail.ModuleNamespace; ns != "" {
 		if n := moduleDetail.ModuleName; n != "" {
@@ -330,7 +311,8 @@ func getModuleDetails(providerClient *http.Client, moduleDetail ModuleDetail, cu
 	uri = fmt.Sprintf("%s?offset=%v", uri, currentOffset)
 	response, err := sendRegistryCall(providerClient, "GET", uri, logger)
 	if err != nil {
-		return nil, logAndReturnError(logger, fmt.Sprintf("getting module(s) for provider %s, not found please provider a better provider name like aws, azurerm or google etc.", moduleDetail.ModuleProvider), err)
+		// We shouldn't log the error here because we might hit a namespace that doesn't exist, it's better to let the caller handle it.
+		return nil, fmt.Errorf("getting module(s) for: %v, please provide a different provider name like aws, azurerm or google etc", moduleDetail)
 	}
 
 	// Return the filtered JSON as a string

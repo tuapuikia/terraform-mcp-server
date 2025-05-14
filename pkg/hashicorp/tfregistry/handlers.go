@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 
@@ -131,7 +132,7 @@ func ListModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool
 			}
 
 			if moduleProvider == nil {
-				response, err := getModuleDetails(registryClient, ModuleDetail{}, currentOffsetValue, logger)
+				response, err := GetModuleDetails(registryClient, ModuleDetail{}, currentOffsetValue, logger)
 				if err != nil {
 					return nil, logAndReturnError(logger, "getting modules", err)
 				}
@@ -142,29 +143,38 @@ func ListModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool
 				return mcp.NewToolResultText(*content), nil
 			}
 
-			if _, ok := moduleProvider.(string); !ok {
+			if mp, ok := moduleProvider.(string); !ok {
 				return nil, logAndReturnError(logger, "error finding the provider, It represents the provider associated with the module, typically the name of the provider where most resources are deployed like aws, azurerm, google etc.", nil)
-			}
-			potentialModuleNamespaces, ok := providerToNamespaceModule[moduleProvider.(string)]
-			if !ok {
-				// If the moduleProvider is not found in the map, we try the moduleProvider name as the namespace
-				potentialModuleNamespaces = []interface{}{moduleProvider.(string)}
-			}
-
-			var modulesData string
-			for _, moduleNamespace := range potentialModuleNamespaces.([]interface{}) {
-				response, err := getModuleDetails(registryClient, ModuleDetail{ModuleNamespace: moduleNamespace.(string)}, currentOffsetValue, logger)
-				if err != nil {
-					return nil, logAndReturnError(logger, fmt.Sprintf("getting module(s), none found for moduleNamespace %s, please provider a different moduleProvider", moduleNamespace.(string)), err)
+			} else {
+				mp = strings.ToLower(mp)
+				potentialModuleNamespaces, ok := providerToNamespaceModule[mp]
+				if !ok {
+					// If the moduleProvider is not found in the map, we try the moduleProvider name and popular module pattern as the namespace
+					potentialModuleNamespaces = []string{mp, fmt.Sprintf("terraform-%s-modules", mp)}
+					logger.Infof("Trying to use %v as potential sources of modules for the provider %s", potentialModuleNamespaces, mp)
 				}
 
-				content, err := UnmarshalTFModulePlural(response)
-				if err != nil {
-					return nil, logAndReturnError(logger, fmt.Sprintf("unmarshalling modules for moduleNamespace: %s", moduleNamespace.(string)), err)
+				var modulesData, errMsg string
+				for _, moduleNamespace := range potentialModuleNamespaces {
+					response, err := GetModuleDetails(registryClient, ModuleDetail{ModuleNamespace: moduleNamespace}, currentOffsetValue, logger)
+					if err != nil {
+						errMsg = fmt.Sprintf("no module(s) found for moduleNamespace %s,", moduleNamespace)
+						continue
+					} else {
+						content, err := UnmarshalTFModulePlural(response)
+						if err != nil {
+							return nil, logAndReturnError(logger, fmt.Sprintf("unmarshalling modules for moduleNamespace: %s", moduleNamespace), err)
+						}
+						modulesData += *content
+					}
 				}
-				modulesData += *content
+
+				if modulesData == "" {
+					errMsg = fmt.Sprintf("getting module(s), none found! %s please provider a different moduleProvider", errMsg)
+					return nil, logAndReturnError(logger, errMsg, nil)
+				}
+				return mcp.NewToolResultText(modulesData), nil
 			}
-			return mcp.NewToolResultText(modulesData), nil
 		}
 }
 
@@ -190,33 +200,39 @@ func ModuleDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.To
 
 			if mp, ok := moduleProvider.(string); !ok || mp == "" {
 				return nil, logAndReturnError(logger, "moduleProvider is required and must be a valid string. It represents the provider associated with the module, typically the name of the provider where most resources are deployed like aws, azurerm, google etc. .", nil)
-			}
-
-			potentialModuleNamespaces, ok := providerToNamespaceModule[moduleProvider.(string)]
-			if !ok {
-				// If the moduleProvider is not found in the map, we try the moduleProvider name as the namespace
-				potentialModuleNamespaces = []interface{}{moduleProvider.(string)}
-			}
-
-			var moduleData string
-			for _, moduleNamespace := range potentialModuleNamespaces.([]interface{}) {
-				moduleDetail := ModuleDetail{
-					ModuleName:      moduleName.(string),
-					ModuleNamespace: moduleNamespace.(string),
-					ModuleProvider:  moduleProvider.(string),
-				}
-				response, err := getModuleDetails(registryClient, moduleDetail, 0, logger)
-				if err != nil {
-					return nil, logAndReturnError(logger, "getting module details", err)
+			} else {
+				mp = strings.ToLower(mp)
+				potentialModuleNamespaces, ok := providerToNamespaceModule[mp]
+				if !ok {
+					// If the moduleProvider is not found in the map, we try the moduleProvider name as the namespace
+					potentialModuleNamespaces = []string{mp, fmt.Sprintf("terraform-%s-modules", mp)}
 				}
 
-				content, err := UnmarshalModuleSingular(response)
-				if err != nil {
-					return nil, logAndReturnError(logger, "unmarshalling module details", err)
-				}
-				moduleData += *content
-			}
+				var moduleData, errMsg string
+				for _, moduleNamespace := range potentialModuleNamespaces {
+					moduleDetail := ModuleDetail{
+						ModuleName:      moduleName.(string),
+						ModuleNamespace: moduleNamespace,
+						ModuleProvider:  moduleProvider.(string),
+					}
+					response, err := GetModuleDetails(registryClient, moduleDetail, 0, logger)
+					if err != nil {
+						errMsg = fmt.Sprintf("no module(s) found for %v,", moduleDetail)
+						continue
+					}
 
-			return mcp.NewToolResultText(moduleData), nil
+					content, err := UnmarshalModuleSingular(response)
+					if err != nil {
+						return nil, logAndReturnError(logger, "unmarshalling module details", err)
+					}
+					moduleData += *content
+				}
+
+				if moduleData == "" {
+					errMsg = fmt.Sprintf("getting module(s), none found! %s please provider a different moduleProvider", errMsg)
+					return nil, logAndReturnError(logger, errMsg, nil)
+				}
+				return mcp.NewToolResultText(moduleData), nil
+			}
 		}
 }
