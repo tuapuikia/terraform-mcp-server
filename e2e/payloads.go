@@ -148,67 +148,81 @@ var providerDetailsTestCases = []RegistryTestCase{
 	},
 }
 
-var listModulesTestCases = []RegistryTestCase{
+var searchModulesTestCases = []RegistryTestCase{
 	{
-		TestShouldFail:  false,
-		TestDescription: "Testing listModules with no parameters",
+		TestShouldFail:  true,
+		TestDescription: "Testing searchModules with no parameters",
 		TestPayload:     map[string]interface{}{},
 	},
 	{
 		TestShouldFail:  false,
-		TestDescription: "Testing listModules with moduleProvider 'aws' - no offset",
+		TestDescription: "Testing searchModules with empty moduleQuery - all modules",
+		TestPayload:     map[string]interface{}{"moduleQuery": ""},
+	},
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing searchModules with moduleQuery 'aws' - no offset",
 		TestPayload: map[string]interface{}{
-			"moduleProvider": "aws",
+			"moduleQuery": "aws",
 		},
 	},
 	{
 		TestShouldFail:  false,
-		TestDescription: "Testing listModules with moduleProvider 'google' and currentOffset 10",
+		TestDescription: "Testing searchModules with moduleQuery '' and currentOffset 10",
 		TestPayload: map[string]interface{}{
-			"moduleProvider": "google",
+			"moduleQuery": "",
 			"currentOffset":  10,
 		},
 	},
 	{
 		TestShouldFail:  false,
-		TestDescription: "Testing listModules with currentOffset 5 only",
+		TestDescription: "Testing searchModules with currentOffset 5 only - all modules",
 		TestPayload: map[string]interface{}{
+			"moduleQuery":   "",
 			"currentOffset": 5,
 		},
 	},
 	{
 		TestShouldFail:  false,
-		TestDescription: "Testing listModules with invalid currentOffset (negative)",
+		TestDescription: "Testing searchModules with invalid currentOffset (negative)",
 		TestPayload: map[string]interface{}{
+			"moduleQuery":   "",
 			"currentOffset": -1,
 		},
 	},
 	{
 		TestShouldFail:  true,
-		TestDescription: "Testing listModules with a moduleProvider not in the map (e.g., 'unknownprovider')",
+		TestDescription: "Testing searchModules with a moduleQuery not in the map (e.g., 'unknownprovider')",
 		TestPayload: map[string]interface{}{
-			"moduleProvider": "unknownprovider",
+			"moduleQuery": "unknownprovider",
 		},
 	},
 	{
 		TestShouldFail:  false,
-		TestDescription: "Testing listModules with vSphere (capitalized)",
+		TestDescription: "Testing searchModules with vSphere (capitalized)",
 		TestPayload: map[string]interface{}{
-			"moduleProvider": "vSphere",
+			"moduleQuery": "vSphere",
 		},
 	},
 	{
 		TestShouldFail:  false,
-		TestDescription: "Testing listModules with Aviatrix (handle terraform-provider-modules)",
+		TestDescription: "Testing searchModules with Aviatrix (handle terraform-provider-modules)",
 		TestPayload: map[string]interface{}{
-			"moduleProvider": "aviatrix",
+			"moduleQuery": "aviatrix",
 		},
 	},
 	{
 		TestShouldFail:  false,
-		TestDescription: "Testing listModules with oci",
+		TestDescription: "Testing searchModules with oci",
 		TestPayload: map[string]interface{}{
-			"moduleProvider": "oci",
+			"moduleQuery": "oci",
+		},
+	},
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing searchModules with vertex ai - query with spaces",
+		TestPayload: map[string]interface{}{
+			"moduleQuery": "vertex ai",
 		},
 	},
 }
@@ -216,80 +230,35 @@ var listModulesTestCases = []RegistryTestCase{
 var moduleDetailsTestCases = []RegistryTestCase{
 	{
 		TestShouldFail:  false,
-		TestDescription: "Testing moduleDetails with valid 'vpc' module for 'aws' provider",
+		TestDescription: "Testing moduleDetails with valid moduleID",
 		TestPayload: map[string]interface{}{
-			"moduleName":     "vpc",
-			"moduleProvider": "aws",
+			"moduleID": "terraform-aws-modules/vpc/aws/2.1.0",
 		},
 	},
 	{
 		TestShouldFail:  true,
-		TestDescription: "Testing moduleDetails missing moduleName",
+		TestDescription: "Testing moduleDetails missing moduleID",
+		TestPayload: map[string]interface{}{},
+	},
+	{
+		TestShouldFail:  true,
+		TestDescription: "Testing moduleDetails with empty moduleID",
 		TestPayload: map[string]interface{}{
-			"moduleProvider": "aws",
+			"moduleID": "",
 		},
 	},
 	{
 		TestShouldFail:  true,
-		TestDescription: "Testing moduleDetails missing moduleProvider",
+		TestDescription: "Testing moduleDetails with non-existent moduleID",
 		TestPayload: map[string]interface{}{
-			"moduleName": "vpc",
-		},
-	},
-	{
-		TestShouldFail:  true,
-		TestDescription: "Testing moduleDetails with empty moduleName",
-		TestPayload: map[string]interface{}{
-			"moduleName":     "",
-			"moduleProvider": "aws",
-		},
-	},
-	{
-		TestShouldFail:  true,
-		TestDescription: "Testing moduleDetails with empty moduleProvider",
-		TestPayload: map[string]interface{}{
-			"moduleName":     "vpc",
-			"moduleProvider": "",
-		},
-	},
-	{
-		TestShouldFail:  true,
-		TestDescription: "Testing moduleDetails with non-existent module 'nonexistentmodule' for 'aws' provider",
-		TestPayload: map[string]interface{}{
-			"moduleName":     "nonexistentmodule",
-			"moduleProvider": "aws",
+			"moduleID": "hashicorp/nonexistentmodule/aws/1.0.0",
 		},
 	},
 	{
 		TestShouldFail:  true, // Expecting empty or error, tool call might succeed but return no useful data
-		TestDescription: "Testing moduleDetails with moduleProvider 'unknownprovider'",
+		TestDescription: "Testing moduleDetails with invalid moduleID format",
 		TestPayload: map[string]interface{}{
-			"moduleName":     "vpc",
-			"moduleProvider": "unknownprovider",
-		},
-	},
-	{
-		TestShouldFail:  false,
-		TestDescription: "Testing listModules with Azure (aks) - no offset",
-		TestPayload: map[string]interface{}{
-			"moduleName":     "aks",
-			"moduleProvider": "azurerm",
-		},
-	},
-	{
-		TestShouldFail:  false,
-		TestDescription: "Testing listModules with vSphere (using terraform-vmware-modules)",
-		TestPayload: map[string]interface{}{
-			"moduleName":     "vm",
-			"moduleProvider": "vSphere",
-		},
-	},
-	{
-		TestShouldFail:  true,
-		TestDescription: "Testing listModules with vercel (no module exists)",
-		TestPayload: map[string]interface{}{
-			"moduleName":     "project",
-			"moduleProvider": "vercel",
+			"moduleID": "invalid-format",
 		},
 	},
 }

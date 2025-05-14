@@ -141,27 +141,27 @@ func TestE2E(t *testing.T) {
 		})
 	}
 
-	for _, testCase := range listModulesTestCases {
-		t.Run("CallTool listModules", func(t *testing.T) {
+	for _, testCase := range searchModulesTestCases {
+		t.Run("CallTool searchModules", func(t *testing.T) {
 			// t.Parallel()
-			t.Logf("TOOL listModules %s", testCase.TestDescription)
+			t.Logf("TOOL searchModules %s", testCase.TestDescription)
 			t.Logf("Test payload: %v", testCase.TestPayload)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
 			request := mcp.CallToolRequest{}
-			request.Params.Name = "listModules"
+			request.Params.Name = "searchModules"
 			request.Params.Arguments = testCase.TestPayload
 
 			response, err := client.CallTool(ctx, request)
 			if testCase.TestShouldFail {
-				require.Error(t, err, "expected to call 'listModules' tool with error")
+				require.Error(t, err, "expected to call 'searchModules' tool with error")
 				t.Logf("Error: %v", err)
 			} else {
-				require.NoError(t, err, "expected to call 'listModules' tool successfully")
+				require.NoError(t, err, "expected to call 'searchModules' tool successfully")
 				require.False(t, response.IsError, "expected result not to be an error")
-				// For listModules, we expect one content item which is the text list of modules.
+				// For searchModules, we expect one content item which is the text list of modules.
 				// If no modules are found for a valid query, it might return an empty list or a message,
 				// but the call itself should succeed.
 				if len(response.Content) > 0 { // Check if content is present before trying to access it
