@@ -3,11 +3,6 @@ on:
   push:
   pull_request:
   workflow_dispatch:
-    inputs:
-      HCP_TFE_TOKEN: # Choose a descriptive name for your input
-        description: 'HCP TFE Token used to include testing of TFE Resources/Tools'
-        required: false
-        type: string
 
 permissions:
   contents: read
@@ -29,6 +24,4 @@ jobs:
         run: make deps
 
       - name: Run unit tests
-        env:
-          HCP_TFE_TOKEN: ${{ github.input.HCP_TFE_TOKEN }}
         run: make test-e2e

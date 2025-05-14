@@ -11,20 +11,13 @@ The purpose of the E2E tests is to have a simple (currently) test that gives mai
 A service must be running that supports image building and container creation via the `docker` CLI.
 
 ```
-HCP_TFE_TOKEN=<YOUR TOKEN> make test-e2e
-```
-
-### Note: providing a `HCP_TFE_TOKEN` is only necessary if TFE Resource/Tools are wanting to be tested. If not set they'll be skipped since TFE related tests contain the following:
-```go
-		if e2eServerToken == "" {
-			t.Skip("HCP_TFE_TOKEN environment variable is not set, skipping")
-		}
+make test-e2e
 ```
 
 Running the tests:
 
 ```
-➜ HCP_TFE_TOKEN=<INSERT_TOKEN_HERE> make test-e2e
+make test-e2e
 === RUN   TestE2E
     e2e_test.go:92: Building Docker image for e2e tests...
     e2e_test.go:38: Starting Stdio MCP client...
