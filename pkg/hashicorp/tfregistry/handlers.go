@@ -132,8 +132,7 @@ func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (t
 
 func SearchModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("searchModules",
-			mcp.WithDescription(`This tool helps users deploy complex services on cloud and on-premise environments by searching for a list of Terraform modules.
-			Please specify the provider name to utilize this tool. You can also use this tool without specifying a provider to get a list of all available modules. you are REQUIRED to call moduleDetails tool after searchModules to get the moduleID. If no modules were found, reattempt the search with a new moduleName query.`),
+			mcp.WithDescription(`This tool helps users deploy complex services on cloud and on-premise environments by searching for a list of Terraform modules. It resolves a module name to obtain a compatible moduleID for the moduleDetails tool and returns a list of matching libraries. You MUST call this function before 'moduleDetails' to obtain a valid and compatible moduleID. When selecting the best match, consider: - Name similarity to the query - Description relevance - Code Snippet count (documentation coverage) - Download counts (popularity) Return the selected moduleID and explain your choice. If there are multiple good matches, mention this but proceed with the most relevant one. If no modules were found, reattempt the search with a new moduleName query.`),
 			mcp.WithString("moduleQuery",
 				mcp.Required(),
 				mcp.Description("The query to search for Terraform modules."),
@@ -151,14 +150,13 @@ func SearchModules(registryClient *http.Client, logger *log.Logger) (tool mcp.To
 				currentOffsetValue = currentOffset.(int)
 			}
 
-			if mq, ok := moduleQuery.(string); !ok && moduleQuery == nil {
+			if mq, ok := moduleQuery.(string); !ok {
 				return nil, logAndReturnError(logger, "error finding the module name;", nil)
 			} else {
 				var modulesData, errMsg string
 				response, err := searchModules(registryClient, mq, currentOffsetValue, logger)
 				if err != nil {
-					errMsg = fmt.Sprintf("no module(s) found for moduleName: %s, error: %s", mq, err)
-					return nil, logAndReturnError(logger, errMsg, nil)
+					return nil, logAndReturnError(logger, fmt.Sprintf("no module(s) found for moduleName: %s", mq), err)
 				} else {
 					modulesData, err = UnmarshalTFModulePlural(response, mq)
 					if err != nil {
@@ -177,11 +175,10 @@ func SearchModules(registryClient *http.Client, logger *log.Logger) (tool mcp.To
 
 func ModuleDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("moduleDetails",
-			mcp.WithDescription(`This tool provides comprehensive details about a Terraform module, including inputs, outputs, and examples, enabling users to understand its effective usage. 
-		To use it, please specify the module name and its associated provider. It's required that searchModules is used first to get the moduleID.`),
+			mcp.WithDescription(`Fetches up-to-date documentation on how to use a Terraform module. You must call 'searchModules' first to obtain the exact valid and compatible moduleID required to use this tool.`),
 			mcp.WithString("moduleID",
 				mcp.Required(),
-				mcp.Description("The ID of the module to to access its detailed information."),
+				mcp.Description("Exact valid and compatible moduleID retrieved from searchModules (e.g., 'squareops/terraform-kubernetes-mongodb/mongodb/2.1.1', 'GoogleCloudPlatform/vertex-ai/google/0.2.0')"),
 			),
 		), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			moduleID := request.Params.Arguments["moduleID"]

@@ -218,6 +218,13 @@ var searchModulesTestCases = []RegistryTestCase{
 			"moduleQuery": "oci",
 		},
 	},
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing searchModules with vertex ai - query with spaces",
+		TestPayload: map[string]interface{}{
+			"moduleQuery": "vertex ai",
+		},
+	},
 }
 
 var moduleDetailsTestCases = []RegistryTestCase{
