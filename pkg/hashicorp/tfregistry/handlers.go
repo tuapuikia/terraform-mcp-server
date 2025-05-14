@@ -133,7 +133,7 @@ func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (t
 func SearchModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("searchModules",
 			mcp.WithDescription(`This tool helps users deploy complex services on cloud and on-premise environments by searching for a list of Terraform modules.
-			Please specify the provider name to utilize this tool. You can also use this tool without specifying a provider to get a list of all available modules. It's required that moduleDetails is used after searchModules to get the moduleID assuming that there's enough context to identify the module. Once the searchModules is used proceed with using moduleDetails with the appropriate moduleID that matches the context of the module. If no modules were find reattempt the search with a new moduleName query.`),
+			Please specify the provider name to utilize this tool. You can also use this tool without specifying a provider to get a list of all available modules. you are REQUIRED to call moduleDetails tool after searchModules to get the moduleID. If no modules were found, reattempt the search with a new moduleName query.`),
 			mcp.WithString("moduleQuery",
 				mcp.Required(),
 				mcp.Description("The query to search for Terraform modules."),

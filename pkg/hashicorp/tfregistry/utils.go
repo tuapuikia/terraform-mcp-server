@@ -370,18 +370,27 @@ func UnmarshalTFModulePlural(response []byte, moduleQuery string) (string, error
 		return "", fmt.Errorf("no modules found for query: %s", moduleQuery)
 	}
 
-	content := fmt.Sprintf("# %s modules\n\n", MODULE_BASE_PATH + fmt.Sprintf("/search?q='%s'", moduleQuery))
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("# %s modules\n\n", MODULE_BASE_PATH+fmt.Sprintf("/search?q='%s'", moduleQuery)))
+	builder.WriteString("The expected output is a list of modules that match the query. The list should include the module ID, description, version, namespace, and source. The list should be formatted in markdown format.\n\n")
+	builder.WriteString(fmt.Sprintf("**ID:** %s\n\n", "the module ID that contains {namespace}/{name}/{provider-name}/{module-version}"))
+	builder.WriteString(fmt.Sprintf("**Description:** %s\n\n", "A short description of the module"))
+	builder.WriteString(fmt.Sprintf("**Module Version:** %s\n\n", "the version of the module"))
+	builder.WriteString(fmt.Sprintf("**Namespace:** %s\n\n", "the namespace of the module"))
+	builder.WriteString(fmt.Sprintf("**Source:** %s\n\n", "the source of the module"))
+	builder.WriteString("----------------------------------\n\n")
 	for _, module := range terraformModules.Data {
-		content += fmt.Sprintf("## %s \n\n**ID:** %s\n\n**Description:** %s \n\n**Module Version:** %s\n\n**Namespace:** %s\n\n**Source:** %s\n\n",
+		builder.WriteString(fmt.Sprintf("## %s \n\n**ID:** %s\n\n**Description:** %s \n\n**Module Version:** %s\n\n**Namespace:** %s\n\n**Source:** %s\n\n",
 			module.Name,
 			module.ID,
 			module.Description,
 			module.Version,
 			module.Namespace,
 			module.Source,
-		)
+		))
+		builder.WriteString("----------------------------------\n\n")
 	}
-	return content, nil
+	return builder.String(), nil
 }
 
 func UnmarshalModuleSingular(response []byte) (string, error) {
