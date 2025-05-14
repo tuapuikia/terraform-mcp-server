@@ -323,17 +323,17 @@ func resolveProviderDetails(request mcp.CallToolRequest, registryClient *http.Cl
 
 const MODULE_BASE_PATH = "registry://modules"
 
-func searchModules(providerClient *http.Client, moduleDetail ModuleDetail, currentOffset int, logger *log.Logger) ([]byte, error) {
+func searchModules(providerClient *http.Client, moduleName string, currentOffset int, logger *log.Logger) ([]byte, error) {
 	uri := "modules"
-	if n := moduleDetail.ModuleName; n != "" {
-		uri = fmt.Sprintf("%s/search?q=%s", uri, n)
+	if moduleName != "" {
+		uri = fmt.Sprintf("%s/search?q=%s", uri, moduleName)
 	}
 
 	uri = fmt.Sprintf("%s&offset=%v", uri, currentOffset)
 	response, err := sendRegistryCall(providerClient, "GET", uri, logger)
 	if err != nil {
 		// We shouldn't log the error here because we might hit a namespace that doesn't exist, it's better to let the caller handle it.
-		return nil, fmt.Errorf("getting module(s) for: %v, please provide a different provider name like aws, azurerm or google etc", moduleDetail)
+		return nil, fmt.Errorf("getting module(s) for: %v, please provide a different provider name like aws, azurerm or google etc", moduleName)
 	}
 
 	// Return the filtered JSON as a string
@@ -357,16 +357,21 @@ func GetModuleDetails(providerClient *http.Client, moduleID string, currentOffse
 	return response, nil
 }
 
-func UnmarshalTFModulePlural(response []byte) (*string, error) {
+func UnmarshalTFModulePlural(response []byte) (string, error) {
 	// Get the list of modules
 	var terraformModules TerraformModules
 	err := json.Unmarshal(response, &terraformModules)
 	if err != nil {
-		return nil, logAndReturnError(nil, "unmarshalling modules", err)
+		return "", logAndReturnError(nil, "unmarshalling modules", err)
 	}
 
-	log.Debugf("terraformModules: %v", terraformModules)
 
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("# %s/%s/%s\n\n", MODULE_BASE_PATH, terraformModules.Namespace, terraformModules.Name))
+	builder.WriteString(fmt.Sprintf("**Description:** %s\n\n", terraformModules.Description))
+	builder.WriteString(fmt.Sprintf("**Module Version:** %s\n\n", terraformModules.Version))
+	builder.WriteString(fmt.Sprintf("**Namespace:** %s\n\n", terraformModules.Namespace))
+	builder.WriteString(fmt.Sprintf("**Source:** %s\n\n", terraformModules.Source))
 	content := fmt.Sprintf("# %s modules\n\n", MODULE_BASE_PATH)
 	for _, module := range terraformModules.Data {
 		content += fmt.Sprintf("## %s \n\n**ID:** %s\n\n**Description:** %s \n\n**Module Version:** %s\n\n**Namespace:** %s\n\n**Source:** %s\n\n",
@@ -378,15 +383,15 @@ func UnmarshalTFModulePlural(response []byte) (*string, error) {
 			module.Source,
 		)
 	}
-	return &content, nil
+	return content, nil
 }
 
-func UnmarshalModuleSingular(response []byte) (*string, error) {
+func UnmarshalModuleSingular(response []byte) (string, error) {
 	// Handles one module
 	var terraformModules TerraformModuleVersionDetails
 	err := json.Unmarshal(response, &terraformModules)
 	if err != nil {
-		return nil, logAndReturnError(nil, "unmarshalling module details", err)
+		return "", logAndReturnError(nil, "unmarshalling module details", err)
 	}
 
 	var builder strings.Builder
@@ -461,7 +466,7 @@ func UnmarshalModuleSingular(response []byte) (*string, error) {
 	}
 
 	content := builder.String()
-	return &content, nil
+	return content, nil
 }
 
 func sendRegistryCall(client *http.Client, method string, uri string, logger *log.Logger, callOptions ...string) ([]byte, error) {

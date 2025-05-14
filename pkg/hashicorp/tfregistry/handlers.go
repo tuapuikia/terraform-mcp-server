@@ -8,8 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
-
 	log "github.com/sirupsen/logrus"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -135,8 +133,9 @@ func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (t
 func SearchModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("searchModules",
 			mcp.WithDescription(`This tool helps users deploy complex services on cloud and on-premise environments by searching for a list of Terraform modules.
-			Please specify the provider name to utilize this tool. You can also use this tool without specifying a provider to get a list of all available modules.`),
+			Please specify the provider name to utilize this tool. You can also use this tool without specifying a provider to get a list of all available modules. It's required that moduleDetails is used after searchModules to get the moduleID assuming that there's enough context to identify the module.`),
 			mcp.WithString("moduleName",
+				mcp.Required(),
 				mcp.Description("The name of the Terraform module to search for."),
 			),
 			mcp.WithNumber("currentOffset",
@@ -152,28 +151,13 @@ func SearchModules(registryClient *http.Client, logger *log.Logger) (tool mcp.To
 				currentOffsetValue = currentOffset.(int)
 			}
 
-			if moduleName == nil {
-				response, err := GetModuleDetails(registryClient, "", currentOffsetValue, logger)
-				if err != nil {
-					return nil, logAndReturnError(logger, "getting modules", err)
-				}
-				content, err := UnmarshalTFModulePlural(response)
-				if err != nil {
-					return nil, logAndReturnError(logger, "unmarshalling modules", err)
-				}
-				return mcp.NewToolResultText(*content), nil
-			}
-
 			if mn, ok := moduleName.(string); !ok {
 				return nil, logAndReturnError(logger, "error finding the module name;", nil)
 			} else {
-				mn = strings.ToLower(mn)
-
-				var modulesData *string
-				var errMsg string
-				response, err := searchModules(registryClient, ModuleDetail{ModuleName: mn}, currentOffsetValue, logger)
+				var modulesData, errMsg string
+				response, err := searchModules(registryClient, mn, currentOffsetValue, logger)
 				if err != nil {
-					errMsg = fmt.Sprintf("no module(s) found for moduleName %s,", mn)
+					errMsg = fmt.Sprintf("no module(s) found for moduleName: %s, error: %s", mn, err)
 					return nil, logAndReturnError(logger, errMsg, nil)
 				} else {
 					modulesData, err = UnmarshalTFModulePlural(response)
@@ -182,11 +166,11 @@ func SearchModules(registryClient *http.Client, logger *log.Logger) (tool mcp.To
 					}
 				}
 
-				if modulesData == nil {
-					errMsg = fmt.Sprintf("getting module(s), none found! %s please provider a different moduleProvider", errMsg)
+				if modulesData == "" {
+					errMsg = fmt.Sprintf("getting module(s), none found! query used: %s; error: %s", mn, errMsg)
 					return nil, logAndReturnError(logger, errMsg, nil)
 				}
-				return mcp.NewToolResultText(*modulesData), nil
+				return mcp.NewToolResultText(modulesData), nil
 			}
 		}
 }
@@ -194,7 +178,7 @@ func SearchModules(registryClient *http.Client, logger *log.Logger) (tool mcp.To
 func ModuleDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("moduleDetails",
 			mcp.WithDescription(`This tool provides comprehensive details about a Terraform module, including inputs, outputs, and examples, enabling users to understand its effective usage. 
-		To use it, please specify the module name and its associated provider.`),
+		To use it, please specify the module name and its associated provider. It's required that searchModules is used first to get the moduleID.`),
 			mcp.WithString("moduleID",
 				mcp.Required(),
 				mcp.Description("The ID of the module to to access its detailed information."),
@@ -205,22 +189,21 @@ func ModuleDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.To
 			if mn, ok := moduleID.(string); !ok || mn == "" {
 				return nil, logAndReturnError(logger, "moduleID is required and must be a valid string. It represents the ID of the module to retrieve detailed information about", nil)
 			} else {
-				var moduleData *string
 				var errMsg string
-				response, err := GetModuleDetails(registryClient, moduleID.(string), 0, logger)
+				response, err := GetModuleDetails(registryClient, mn, 0, logger)
 				if err != nil {
-					errMsg = fmt.Sprintf("no module(s) found for %v,", moduleID.(string))
+					errMsg = fmt.Sprintf("no module(s) found for %v,", mn)
 					return nil, logAndReturnError(logger, errMsg, nil)
 				}
-				moduleData, err = UnmarshalModuleSingular(response)
+				moduleData, err := UnmarshalModuleSingular(response)
 				if err != nil {
 					return nil, logAndReturnError(logger, "unmarshalling module details", err)
 				}
-				if moduleData == nil {
+				if moduleData == "" {
 					errMsg = fmt.Sprintf("getting module(s), none found! %s please provider a different moduleProvider", errMsg)
 					return nil, logAndReturnError(logger, errMsg, nil)
 				}
-				return mcp.NewToolResultText(*moduleData), nil
+				return mcp.NewToolResultText(moduleData), nil
 				}
 		}
 }
