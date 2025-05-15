@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"regexp"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -370,6 +371,11 @@ func UnmarshalTFModulePlural(response []byte, moduleQuery string) (string, error
 	if len(terraformModules.Data) == 0 {
 		return "", fmt.Errorf("no modules found for query: %s", moduleQuery)
 	}
+
+	// Sort by most downloaded
+	sort.Slice(terraformModules.Data, func(i, j int) bool {
+		return terraformModules.Data[i].Downloads > terraformModules.Data[j].Downloads
+	})
 
 	var builder strings.Builder
 	builder.WriteString(fmt.Sprintf("# %s modules\n\n", MODULE_BASE_PATH+fmt.Sprintf("/search?q='%s'", moduleQuery)))
