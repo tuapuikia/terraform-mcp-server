@@ -378,8 +378,7 @@ func UnmarshalTFModulePlural(response []byte, moduleQuery string) (string, error
 	})
 
 	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("# %s modules\n\n", MODULE_BASE_PATH+fmt.Sprintf("/search?q='%s'", moduleQuery)))
-	builder.WriteString("Available Modules (top matches) \n\n Each result includes:\n")
+	builder.WriteString(fmt.Sprintf("Available Terraform Modules (top matches) for %s\n\n Each result includes:\n", moduleQuery))
 	builder.WriteString("- moduleID: The module ID (format: namespace/name/provider-name/module-version)\n")
 	builder.WriteString("- Name: The name of the module\n")
 	builder.WriteString("- Description: A short description of the module\n")
