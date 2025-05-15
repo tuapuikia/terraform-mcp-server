@@ -477,10 +477,8 @@ func sendPaginatedRegistryCall[T any](client *http.Client, uriPrefix string, log
 }
 
 func logAndReturnError(logger *log.Logger, context string, err error) error {
-	if err == nil {
-		err = fmt.Errorf("%s", context)
-	}
-	logger.Errorf("Error in %s: %v", context, err)
+	err = fmt.Errorf("%s, %w", context, err)
+	logger.Errorf("Error in %s, %v", context, err)
 	return err
 }
 

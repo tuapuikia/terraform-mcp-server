@@ -143,6 +143,40 @@ var providerTestCases = []RegistryTestCase{
 	},
 }
 
+var providerDocsTestCases = []RegistryTestCase{
+	{
+		TestShouldFail:  true,
+		TestDescription: "Testing providerDocs with empty payload",
+		TestPayload:     map[string]interface{}{},
+	},
+	{
+		TestShouldFail:  true,
+		TestDescription: "Testing providerDocs with empty providerDocID",
+		TestPayload: map[string]interface{}{
+			"providerDocID": "",
+		},
+	},
+	{
+		TestShouldFail:  true,
+		TestDescription: "Testing providerDocs with invalid providerDocID",
+		TestPayload: map[string]interface{}{
+			"providerDocID": "invalid-doc-id",
+		},
+	},
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing providerDocs with all correct providerDocID value",
+		TestPayload: map[string]interface{}{
+			"providerDocID": "8894603",
+		},
+	}, {
+		TestShouldFail:  true,
+		TestDescription: "Testing providerDocs with incorrect numeric providerDocID value",
+		TestPayload: map[string]interface{}{
+			"providerDocID": "3356809",
+		},
+	},
+}
 var searchModulesTestCases = []RegistryTestCase{
 	{
 		TestShouldFail:  true,

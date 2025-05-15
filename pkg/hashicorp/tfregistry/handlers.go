@@ -87,7 +87,7 @@ func GetProviderDocs(registryClient *http.Client, logger *log.Logger) (tool mcp.
 
 			detailResp, err := sendRegistryCall(registryClient, "GET", fmt.Sprintf("provider-docs/%s", providerDocID), logger, "v2")
 			if err != nil {
-				return nil, logAndReturnError(logger, fmt.Sprintf("Error fetching provider-docs/%s", providerDocID), err)
+				return nil, logAndReturnError(logger, fmt.Sprintf("Error fetching provider-docs/%s, please make sure providerDocID is valid and the providerOverview tool has run prior", providerDocID), err)
 			}
 
 			var details ProviderResourceDetails
