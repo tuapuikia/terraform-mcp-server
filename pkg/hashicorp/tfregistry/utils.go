@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"regexp"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -371,25 +372,28 @@ func UnmarshalTFModulePlural(response []byte, moduleQuery string) (string, error
 		return "", fmt.Errorf("no modules found for query: %s", moduleQuery)
 	}
 
+	// Sort by most downloaded
+	sort.Slice(terraformModules.Data, func(i, j int) bool {
+		return terraformModules.Data[i].Downloads > terraformModules.Data[j].Downloads
+	})
+
 	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("# %s modules\n\n", MODULE_BASE_PATH+fmt.Sprintf("/search?q='%s'", moduleQuery)))
-	builder.WriteString("The expected output is a list of modules that match the query. The list should include the module ID, description, version, namespace, and source. The list should be formatted in markdown format.\n\n")
-	builder.WriteString(fmt.Sprintf("**ID:** %s\n\n", "the module ID that contains {namespace}/{name}/{provider-name}/{module-version}"))
-	builder.WriteString(fmt.Sprintf("**Description:** %s\n\n", "A short description of the module"))
-	builder.WriteString(fmt.Sprintf("**Module Version:** %s\n\n", "the version of the module"))
-	builder.WriteString(fmt.Sprintf("**Namespace:** %s\n\n", "the namespace of the module"))
-	builder.WriteString(fmt.Sprintf("**Source:** %s\n\n", "the source of the module"))
-	builder.WriteString("----------------------------------\n\n")
+	builder.WriteString(fmt.Sprintf("Available Terraform Modules (top matches) for %s\n\n Each result includes:\n", moduleQuery))
+	builder.WriteString("- moduleID: The module ID (format: namespace/name/provider-name/module-version)\n")
+	builder.WriteString("- Name: The name of the module\n")
+	builder.WriteString("- Description: A short description of the module\n")
+	builder.WriteString("- Downloads: The total number of times the module has been downloaded\n")
+	builder.WriteString("- Verified: Verification status of the module\n")
+	builder.WriteString("- Published: The date and time when the module was published\n")
+	builder.WriteString("\n\n---\n\n")
 	for _, module := range terraformModules.Data {
-		builder.WriteString(fmt.Sprintf("## %s \n\n**ID:** %s\n\n**Description:** %s \n\n**Module Version:** %s\n\n**Namespace:** %s\n\n**Source:** %s\n\n",
-			module.Name,
-			module.ID,
-			module.Description,
-			module.Version,
-			module.Namespace,
-			module.Source,
-		))
-		builder.WriteString("----------------------------------\n\n")
+		builder.WriteString(fmt.Sprintf("- moduleID: %s\n", module.ID))
+		builder.WriteString(fmt.Sprintf("- Name: %s\n", module.Name))
+		builder.WriteString(fmt.Sprintf("- Description: %s\n", module.Description))
+		builder.WriteString(fmt.Sprintf("- Downloads: %d\n", module.Downloads))
+		builder.WriteString(fmt.Sprintf("- Verified: %t\n", module.Verified))
+		builder.WriteString(fmt.Sprintf("- Published: %s\n", module.PublishedAt))
+		builder.WriteString("---\n\n")
 	}
 	return builder.String(), nil
 }
