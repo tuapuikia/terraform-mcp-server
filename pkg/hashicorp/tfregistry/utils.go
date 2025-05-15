@@ -163,6 +163,30 @@ func GetProviderResourceDetailsV2(client *http.Client, providerDetail ProviderDe
 	return builder.String(), nil
 }
 
+// containsSlug checks if the sourceName string contains the slug string anywhere within it.
+// It safely handles potential regex metacharacters in the slug.
+// TODO: include a unit test for this
+func containsSlug(sourceName string, slug string) (bool, error) {
+	// Use regexp.QuoteMeta to escape any special regex characters in the slug.
+	// This ensures the slug is treated as a literal string in the pattern.
+	escapedSlug := regexp.QuoteMeta(slug)
+
+	// Construct the regex pattern dynamically: ".*" + escapedSlug + ".*"
+	// This pattern means "match any characters, then the escaped slug, then any characters".
+	pattern := ".*" + escapedSlug + ".*"
+
+	// regexp.MatchString compiles and runs the regex against the sourceName.
+	// It returns true if a match is found, false otherwise.
+	// It also returns an error if the pattern is invalid (unlikely here due to QuoteMeta).
+	matched, err := regexp.MatchString(pattern, sourceName)
+	if err != nil {
+		fmt.Printf("Error compiling or matching regex pattern '%s': %v\n", pattern, err)
+		return false, err // Propagate the error
+	}
+
+	return matched, nil
+}
+
 // isValidProviderVersionFormat checks if the provider version format is valid.
 func isValidProviderVersionFormat(version string) bool {
 	// Example regex for semantic versioning (e.g., "1.0.0", "1.0.0-beta").
@@ -490,9 +514,4 @@ func GetProviderDocsV2(client *http.Client, providerDetail ProviderDetail, logge
 	}
 
 	return builder.String(), nil
-}
-
-func isV2ProviderDataType(dataType string) bool {
-	v2Categories := []string{"guides", "functions", "overview"}
-	return slices.Contains(v2Categories, dataType)
 }
