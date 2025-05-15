@@ -7,8 +7,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	log "github.com/sirupsen/logrus"
+	"net/http"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -146,8 +146,8 @@ func SearchModules(registryClient *http.Client, logger *log.Logger) (tool mcp.To
 			moduleQuery := request.Params.Arguments["moduleQuery"]
 			currentOffset := request.Params.Arguments["currentOffset"]
 			currentOffsetValue := 0
-			if _, ok := currentOffset.(int); ok {
-				currentOffsetValue = currentOffset.(int)
+			if val, ok := currentOffset.(float64); ok {
+				currentOffsetValue = int(val)
 			}
 
 			if mq, ok := moduleQuery.(string); !ok {
@@ -201,6 +201,6 @@ func ModuleDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.To
 					return nil, logAndReturnError(logger, errMsg, nil)
 				}
 				return mcp.NewToolResultText(moduleData), nil
-				}
+			}
 		}
 }
