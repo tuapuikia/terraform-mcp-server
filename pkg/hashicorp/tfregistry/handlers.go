@@ -15,9 +15,9 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// ProviderOverview creates a tool to get provider details from registry.
-func ProviderOverview(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("providerOverview",
+// ResolveProviderDocID creates a tool to get provider details from registry.
+func ResolveProviderDocID(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("resolveProviderDocID",
 			mcp.WithDescription(`This tool retrieves a specific Terraform provider version. You MUST call this function before 'getProviderDocs' to obtain a valid tfprovider-compatible providerDocID. 
 			When selecting the best match, consider: - Name similarity to the query - Description relevance Return the selected providerDocID and explain your choice. 
 			If there are multiple good matches, mention this but proceed with the most relevant one.`),
@@ -76,8 +76,8 @@ func ProviderOverview(registryClient *http.Client, logger *log.Logger) (tool mcp
 // GetProviderDocs creates a tool to get provider docs for a specific service from registry.
 func GetProviderDocs(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("getProviderDocs",
-			mcp.WithDescription(`Fetches up-to-date documentation fora specific service from a Terraform provider. You must call 'providerOverview' first to obtain the exact tfprovider-compatible providerDocID required to use this tool.`),
-			mcp.WithString("providerDocID", mcp.Required(), mcp.Description("Exact tfprovider-compatible providerDocID, (e.g., '8894603', '8906901') retrieved from 'providerOverview'")), // TODO: fix this
+			mcp.WithDescription(`Fetches up-to-date documentation fora specific service from a Terraform provider. You must call 'resolveProviderDocID' first to obtain the exact tfprovider-compatible providerDocID required to use this tool.`),
+			mcp.WithString("providerDocID", mcp.Required(), mcp.Description("Exact tfprovider-compatible providerDocID, (e.g., '8894603', '8906901') retrieved from 'resolveProviderDocID'")), // TODO: fix this
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			providerDocID, ok := request.Params.Arguments["providerDocID"].(string)
@@ -87,7 +87,7 @@ func GetProviderDocs(registryClient *http.Client, logger *log.Logger) (tool mcp.
 
 			detailResp, err := sendRegistryCall(registryClient, "GET", fmt.Sprintf("provider-docs/%s", providerDocID), logger, "v2")
 			if err != nil {
-				return nil, logAndReturnError(logger, fmt.Sprintf("Error fetching provider-docs/%s, please make sure providerDocID is valid and the providerOverview tool has run prior", providerDocID), err)
+				return nil, logAndReturnError(logger, fmt.Sprintf("Error fetching provider-docs/%s, please make sure providerDocID is valid and the resolveProviderDocID tool has run prior", providerDocID), err)
 			}
 
 			var details ProviderResourceDetails

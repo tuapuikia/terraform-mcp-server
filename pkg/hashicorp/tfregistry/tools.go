@@ -11,7 +11,7 @@ import (
 )
 
 func InitTools(hcServer *server.MCPServer, registryClient *http.Client, logger *log.Logger) {
-	hcServer.AddTool(ProviderOverview(registryClient, logger))
+	hcServer.AddTool(ResolveProviderDocID(registryClient, logger))
 	hcServer.AddTool(GetProviderDocs(registryClient, logger))
 	hcServer.AddTool(SearchModules(registryClient, logger))
 	hcServer.AddTool(ModuleDetails(registryClient, logger))

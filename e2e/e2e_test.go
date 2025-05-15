@@ -55,25 +55,25 @@ func TestE2E(t *testing.T) {
 	})
 
 	for _, testCase := range providerTestCases {
-		t.Run("CallTool providerOverview", func(t *testing.T) {
+		t.Run("CallTool resolveProviderDocID", func(t *testing.T) {
 			// t.Parallel()
-			t.Logf("TOOL providerOverview %s", testCase.TestDescription)
+			t.Logf("TOOL resolveProviderDocID %s", testCase.TestDescription)
 			t.Logf("Test payload: %v", testCase.TestPayload)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
 			request := mcp.CallToolRequest{}
-			request.Params.Name = "providerOverview"
+			request.Params.Name = "resolveProviderDocID"
 			request.Params.Arguments = testCase.TestPayload
 
 			response, err := client.CallTool(ctx, request)
 			if testCase.TestShouldFail {
-				require.Error(t, err, "expected to call 'providerOverview' tool with error")
+				require.Error(t, err, "expected to call 'resolveProviderDocID' tool with error")
 				t.Logf("Error: %v", err)
 				// require.True(t, response.IsError, "expected result to be an error")
 			} else {
-				require.NoError(t, err, "expected to call 'providerOverview' tool successfully")
+				require.NoError(t, err, "expected to call 'resolveProviderDocID' tool successfully")
 				require.False(t, response.IsError, "expected result not to be an error")
 				require.Len(t, response.Content, 1, "expected content to have one item")
 
