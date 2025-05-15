@@ -124,11 +124,10 @@ The following sets of tools are available:
 
 | Toolset     | Tool                       | Description                                                                                                           |
 |-------------|----------------------------|-----------------------------------------------------------------------------------------------------------------------|
-| `providers` | `providerDetails`          | Get comprehensive information about a specific provider, including its resources, data sources, functions, guides, and overview |
-| `providers` | `providerResourceDetails`  | Get detailed documentation, schema, and code examples for a specific provider resource or data source                 |
+| `providers` | `resolveProviderDocID`     | Get comprehensive information about a specific provider, including its resources, data sources, and functions         |
+| `providers` | `getProviderDocs`          | Get detailed documentation, schema, and code examples for a specific provider resource or data source                 |
 | `modules`   | `searchModules`            | Search and list available Terraform modules with filtering and pagination support                                      |
 | `modules`   | `moduleDetails`            | Get comprehensive details about a specific module, including its inputs, outputs, root configuration, submodules, and examples |
-
 
 ## Development
 

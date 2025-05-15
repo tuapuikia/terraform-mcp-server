@@ -21,7 +21,7 @@ type RegistryTestCase struct {
 	TestPayload     map[string]interface{} `json:"testPayload,omitempty"`
 }
 
-var providerDetailsTestCases = []RegistryTestCase{
+var providerTestCases = []RegistryTestCase{
 	{
 		TestShouldFail:  true,
 		TestDescription: "Testing with empty payload",
@@ -65,12 +65,12 @@ var providerDetailsTestCases = []RegistryTestCase{
 		TestPayload: map[string]interface{}{
 			"providerName":      "dns",
 			"providerNamespace": "hashicorp",
-			"serviceName":       "dns_ns_record_set",
+			"serviceName":       "ns_record_set",
 		},
 	},
 	{
 		TestShouldFail:  false,
-		TestDescription: "Testing resources with all values for hashicorp providerNamespace",
+		TestDescription: "Testing resources with all values for non-hashicorp providerNamespace",
 		TestContentType: CONST_TYPE_RESOURCE,
 		TestPayload: map[string]interface{}{
 			"providerName":      "pinecone",
@@ -170,8 +170,8 @@ var searchModulesTestCases = []RegistryTestCase{
 		TestShouldFail:  false,
 		TestDescription: "Testing searchModules with moduleQuery '' and currentOffset 10",
 		TestPayload: map[string]interface{}{
-			"moduleQuery": "",
-			"currentOffset":  10,
+			"moduleQuery":   "",
+			"currentOffset": 10,
 		},
 	},
 	{
@@ -238,7 +238,7 @@ var moduleDetailsTestCases = []RegistryTestCase{
 	{
 		TestShouldFail:  true,
 		TestDescription: "Testing moduleDetails missing moduleID",
-		TestPayload: map[string]interface{}{},
+		TestPayload:     map[string]interface{}{},
 	},
 	{
 		TestShouldFail:  true,

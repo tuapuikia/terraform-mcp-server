@@ -15,17 +15,16 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// ProviderDetails creates a tool to get provider details from registry.
-func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("providerDetails",
-			mcp.WithDescription(`This tool helps users deploy services on cloud, on-premise and SaaS application environments by retrieving a specific Terraform provider. 
+// ProviderOverview creates a tool to get provider details from registry.
+func ProviderOverview(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("providerOverview",
+			mcp.WithDescription(`This tool retrieves a specific Terraform provider version. 
 			It helps users understand everything that can be provisioned and managed using the Terraform provider by listing out its resources (write operations), data sources (read operations), and functions (utility operations). 
-			For each item, note the existence and path of its documentation.
-			`),
-			mcp.WithString("providerName", mcp.Required(), mcp.Description("The name of the Terraform provider to perform the read or deployment operation.")),
-			mcp.WithString("providerNamespace", mcp.Required(), mcp.Description("The publisher of the Terraform provider, typically the name of the company, or their GitHub organization name that created the provider.")),
-			mcp.WithString("providerVersion", mcp.Description("The version of the Terraform provider to retrieve in the format 'x.y.z', or 'latest' to get the latest version.")),
-			mcp.WithString("providerDataType", mcp.Description("The source type of the Terraform provider to retrieve."),
+			For each item, note the existence and path of its documentation`),
+			mcp.WithString("providerName", mcp.Required(), mcp.Description("The name of the Terraform provider to perform the read or deployment operation")),
+			mcp.WithString("providerNamespace", mcp.Required(), mcp.Description("The publisher of the Terraform provider, typically the name of the company, or their GitHub organization name that created the provider")),
+			mcp.WithString("providerVersion", mcp.Description("The version of the Terraform provider to retrieve in the format 'x.y.z', or 'latest' to get the latest version")),
+			mcp.WithString("providerDataType", mcp.Description("The source type of the Terraform provider to retrieve"),
 				mcp.Enum("resources", "data-sources", "functions", "guides", "overview")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -88,16 +87,17 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 		}
 }
 
-func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("providerResourceDetails",
+// GetProviderDocs creates a tool to get provider docs for a specific service from registry.
+func GetProviderDocs(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("getProviderDocs",
 			mcp.WithDescription(`This tool is used to obtain the documentation, schema, and code examples from a given Terraform provider version, which will guide you in deploying a specific service on cloud, on-premise, and SaaS application environments. 
-			Please specify the provider name, namespace, and the service name you wish to provision to utilize this tool.`),
-			mcp.WithString("providerName", mcp.Required(), mcp.Description("The name of the Terraform provider to perform the read or deployment operation.")),
-			mcp.WithString("providerNamespace", mcp.Required(), mcp.Description("The publisher of the Terraform provider, typically the name of the company or their GitHub organization name that created the provider.")),
-			mcp.WithString("providerVersion", mcp.Description("The version of the Terraform provider to retrieve in the format 'x.y.z', or 'latest' to get the latest version.")),
-			mcp.WithString("providerDataType", mcp.Description("The source type of the Terraform provider to retrieve, can be 'resources' or 'data-sources'."),
-				mcp.Enum("resources", "data-sources", "functions", "guides")),
-			mcp.WithString("serviceName", mcp.Required(), mcp.Description("The name of the service or resource for read or deployment operations.")),
+			Please specify the provider name, namespace, and the service name you wish to provision to utilize this tool`),
+			mcp.WithString("providerName", mcp.Required(), mcp.Description("The name of the Terraform provider to perform the read or deployment operation")),
+			mcp.WithString("providerNamespace", mcp.Required(), mcp.Description("The publisher of the Terraform provider, typically the name of the company or their GitHub organization name that created the provider")),
+			mcp.WithString("providerVersion", mcp.Description("The version of the Terraform provider to retrieve in the format 'x.y.z', or 'latest' to get the latest version")),
+			mcp.WithString("providerDataType", mcp.Description("The source type of the Terraform provider to retrieve, can be 'resources' or 'data-sources'"),
+				mcp.Enum("resources", "data-sources", "functions", "guides", "overview")),
+			mcp.WithString("serviceName", mcp.Required(), mcp.Description("The name of the service or resource for read or deployment operations")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 
@@ -114,11 +114,8 @@ func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (t
 			}
 
 			var content string
-			if isV2ProviderDataType(providerDetail.ProviderDataType) {
-				content, err = GetProviderResourceDetailsV2(registryClient, providerDetail, serviceName, logger)
-			} else {
-				content, err = GetProviderResourceDetails(registryClient, providerDetail, serviceName, logger)
-			}
+			content, err = GetProviderResourceDetailsV2(registryClient, providerDetail, serviceName, logger)
+
 			if err != nil {
 				return nil, err
 			}
