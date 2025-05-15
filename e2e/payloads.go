@@ -70,6 +70,16 @@ var providerTestCases = []RegistryTestCase{
 	},
 	{
 		TestShouldFail:  false,
+		TestDescription: "Testing only with required values with the providerName prefix",
+		TestContentType: CONST_TYPE_BOTH,
+		TestPayload: map[string]interface{}{
+			"providerName":      "dns",
+			"providerNamespace": "hashicorp",
+			"serviceName":       "dns_ns_record_set",
+		},
+	},
+	{
+		TestShouldFail:  false,
 		TestDescription: "Testing resources with all values for non-hashicorp providerNamespace",
 		TestContentType: CONST_TYPE_RESOURCE,
 		TestPayload: map[string]interface{}{
