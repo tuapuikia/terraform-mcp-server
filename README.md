@@ -11,37 +11,20 @@ automation and interaction capabilities for Infrastructure as Code (IaC) develop
 - Getting detailed information about provider resources and data sources
 - Exploring and understanding Terraform modules
 
-> **Caution:** The outputs and recommendations provided by the MCP server are generated dynamically and may vary based on the query, model, and connected MCP servers. Users should **thoroughly review all outputs/recommendations** to ensure they align with their organization's **security best practices**, **cost-efficiency goals**, and **compliance requirements** before implementation.
+> **Caution:** The outputs and recommendations provided by the MCP server are generated dynamically and may vary based on the query, model, and the connected MCP server. Users should **thoroughly review all outputs/recommendations** to ensure they align with their organization's **security best practices**, **cost-efficiency goals**, and **compliance requirements** before implementation.
 
 ## Prerequisites
 
 1. To run the server in a container, you will need to have [Docker](https://www.docker.com/) installed.
-2. Once Docker is installed, you will also need to ensure Docker is running.
-
-> **Note**: Currently, the Docker image needs to be built locally as it's not yet available in Docker Hub. We plan to release the official Docker image through HashiCorp's Docker Hub registry in the future. Follow [issue/31](https://github.com/hashicorp/terraform-mcp-server/issues/31) for updates
-
-## Building the Docker Image
-
-Before using the server, you need to build the Docker image locally:
-
-1. Clone the repository:
-```bash
-git clone https://github.com/hashicorp/terraform-mcp-server.git
-cd terraform-mcp-server
-```
-
-2. Build the Docker image:
-```bash
-make docker-build
-```
-
-This will create a local Docker image that you can use in the following configurations.
+2. Once Docker is installed, you will need to ensure Docker is running.
 
 ## Installation
 
 ### Usage with VS Code
 
-Add the following JSON block to your User Settings (JSON) file in VS Code. You can do this by pressing `Ctrl + Shift + P` and typing `Preferences: Open User Settings (JSON)`.
+Add the following JSON block to your User Settings (JSON) file in VS Code. You can do this by pressing `Ctrl + Shift + P` and typing `Preferences: Open User Settings (JSON)`. 
+
+More about using MCP server tools in VS Code's [agent mode documentation](https://code.visualstudio.com/docs/copilot/chat/mcp-servers).
 
 ```json
 {
@@ -53,7 +36,7 @@ Add the following JSON block to your User Settings (JSON) file in VS Code. You c
           "run",
           "-i",
           "--rm",
-          "terraform-mcp-server"
+          "hashicorp/terraform-mcp-server"
         ]
       }
     }
@@ -72,14 +55,14 @@ Optionally, you can add a similar example (i.e. without the mcp key) to a file c
         "run",
         "-i",
         "--rm",
-        "terraform-mcp-server"
+        "hashicorp/terraform-mcp-server"
       ]
     }
   }
 }
 ```
 
-More about using MCP server tools in VS Code's [agent mode documentation](https://code.visualstudio.com/docs/copilot/chat/mcp-servers).
+More about using MCP server tools in Claude Desktop [user documentation](https://code.visualstudio.com/docs/copilot/chat/mcp-servers).
 
 ### Usage with Claude Desktop
 
@@ -92,25 +75,8 @@ More about using MCP server tools in VS Code's [agent mode documentation](https:
         "run",
         "-i",
         "--rm",
-        "terraform-mcp-server"
+        "hashicorp/terraform-mcp-server"
       ]
-    }
-  }
-}
-```
-
-### Build from source
-
-If you don't have Docker, you can use `make build` to build the binary directly from source code. You should configure your server to use the built executable as its `command`. For example:
-
-```json
-{
-  "mcp": {
-    "servers": {
-      "terraform": {
-        "command": "/path/to/terraform-mcp-server",
-        "args": ["stdio"]
-      }
     }
   }
 }
@@ -128,6 +94,67 @@ The following sets of tools are available:
 | `providers` | `getProviderDocs`      | Fetches the complete documentation content for a specific provider resource, data source, or function using a document ID obtained from the `resolveProviderDocID` tool. Returns the raw documentation in markdown format.                                     |
 | `modules`   | `searchModules`        | Searches the Terraform Registry for modules based on specified `moduleQuery` with pagination. Returns a list of module IDs with their names, descriptions, download counts, verification status, and publish dates                                             |
 | `modules`   | `moduleDetails`        | Retrieves detailed documentation for a module using a module ID obtained from the `searchModules` tool including inputs, outputs, configuration, submodules, and examples.                                                                                     |
+
+### Build from source
+
+If you don't have Docker, you can use `make build` to build the binary directly from source code. You should configure your server to use the built executable as its `command`.
+
+1. Clone the repository:
+```bash
+git clone https://github.com/hashicorp/terraform-mcp-server.git
+cd terraform-mcp-server
+```
+
+2. Build the binary:
+```bash
+make build
+```
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "terraform": {
+        "command": "/path/to/terraform-mcp-server",
+        "args": ["stdio"]
+      }
+    }
+  }
+}
+```
+
+## Building the Docker Image locally
+
+Before using the server, you need to build the Docker image locally:
+
+1. Clone the repository:
+```bash
+git clone https://github.com/hashicorp/terraform-mcp-server.git
+cd terraform-mcp-server
+```
+
+2. Build the Docker image:
+```bash
+make docker-build
+```
+
+This will create a local Docker image that you can use in the following configuration.
+
+```json
+{
+  "servers": {
+    "terraform": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "terraform-mcp-server"
+      ]
+    }
+  }
+}
+```
 
 ## Development
 
