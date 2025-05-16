@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 
@@ -19,17 +20,21 @@ import (
 func ResolveProviderDocID(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("resolveProviderDocID",
 			mcp.WithDescription(`This tool retrieves a specific Terraform provider version. You MUST call this function before 'getProviderDocs' to obtain a valid tfprovider-compatible providerDocID. 
-			When selecting the best match, consider: - Name similarity to the query - Description relevance Return the selected providerDocID and explain your choice. 
+			When selecting the best match, consider: - Name similarity to the query - Description relevance Return the selected providerDocID and explain your choice. If unsure about the serviceName, use the providerName for its value. 
 			If there are multiple good matches, mention this but proceed with the most relevant one.`),
 			mcp.WithString("providerName", mcp.Required(), mcp.Description("The name of the Terraform provider to perform the read or deployment operation")),
 			mcp.WithString("providerNamespace", mcp.Required(), mcp.Description("The publisher of the Terraform provider, typically the name of the company, or their GitHub organization name that created the provider")),
 			mcp.WithString("serviceName", mcp.Required(), mcp.Description("The name of the service you want to deploy or read using the Terraform provider")),
+			mcp.WithString("providerDataType", mcp.Description("The source type of the Terraform provider to retrieve."),
+				mcp.Enum("resources", "data-sources", "functions", "guides", "overview"),
+				mcp.DefaultString("resources"),
+			),
 			mcp.WithString("providerVersion", mcp.Description("The version of the Terraform provider to retrieve in the format 'x.y.z', or 'latest' to get the latest version")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 
 			// For typical provider and namespace hallucinations
-			defaultErrorGuide := "please check the provider name, namespace or the service you're looking for, perhaps the provider is published under a different namespace or company name or service name is incorrect"
+			defaultErrorGuide := "please check the provider name, provider namespace or the provider version you're looking for, perhaps the provider is published under a different namespace or company name"
 			providerDetail, err := resolveProviderDetails(request, registryClient, defaultErrorGuide, logger)
 			if err != nil {
 				return nil, err
@@ -40,11 +45,33 @@ func ResolveProviderDocID(registryClient *http.Client, logger *log.Logger) (tool
 				return nil, logAndReturnError(logger, "serviceName is required and must be a string", nil)
 			}
 
+			providerDataType, ok := request.Params.Arguments["providerDataType"].(string)
+			if !ok || providerDataType == "" {
+				providerDataType = "resources"
+			}
+			providerDetail.ProviderDataType = providerDataType
+
+			// Check if we need to use v2 API for guides, functions, or overview
+			if isV2ProviderDataType(providerDetail.ProviderDataType) {
+				content, err := GetProviderDocsV2(registryClient, providerDetail, logger)
+				if err != nil {
+					errMessage := fmt.Sprintf(`No %s documentation found for provider '%s' in the '%s' namespace, %s`,
+						providerDetail.ProviderDataType, providerDetail.ProviderName, providerDetail.ProviderNamespace, defaultErrorGuide)
+					return nil, logAndReturnError(logger, errMessage, err)
+				}
+
+				fullContent := fmt.Sprintf("# %s provider docs\n\n%s",
+					providerDetail.ProviderName, content)
+
+				return mcp.NewToolResultText(fullContent), nil
+			}
+
 			// For resources/data-sources, use the v1 API for better performance (single response)
 			uri := fmt.Sprintf("providers/%s/%s/%s", providerDetail.ProviderNamespace, providerDetail.ProviderName, providerDetail.ProviderVersion)
 			response, err := sendRegistryCall(registryClient, "GET", uri, logger)
 			if err != nil {
-				return nil, logAndReturnError(logger, "getting provider details", err)
+				return nil, logAndReturnError(logger, fmt.Sprintf(`Error getting the "%s" provider, 
+					with version "%s" in the %s namespace, %s`, providerDetail.ProviderName, providerDetail.ProviderVersion, providerDetail.ProviderNamespace, defaultErrorGuide), nil)
 			}
 
 			var providerDocs ProviderDocs
@@ -52,24 +79,29 @@ func ResolveProviderDocID(registryClient *http.Client, logger *log.Logger) (tool
 				return nil, logAndReturnError(logger, "unmarshalling provider docs", err)
 			}
 
-			content := fmt.Sprintf("# %s provider docs\n\n Each result includes: \n\n- providerDocID: tfprovider-compatible identifier (format: Integer)\n- Title: Service or resource name\n- Category: Type of document (e.g., 'resources', 'data-sources', 'guides')\nFor best results, select libraries based on the name match. \n\n ---", providerDetail.ProviderName)
+			var builder strings.Builder
+			builder.WriteString(fmt.Sprintf("Available Documentation (top matches) for %s in Terraform provider %s/%s version: %s\n\n", providerDetail.ProviderDataType, providerDetail.ProviderNamespace, providerDetail.ProviderName, providerDetail.ProviderVersion))
+			builder.WriteString("Each result includes:\n- providerDocID: tfprovider-compatible identifier\n- Title: Service or resource name\n- Category: Type of document\n")
+			builder.WriteString("For best results, select libraries based on the serviceName match and category of information requested.\n\n---\n\n")
+
 			contentAvailable := false
 			for _, doc := range providerDocs.Docs {
-				cs, err := containsSlug(doc.Slug, serviceName)
-				cs_pn, err_pn := containsSlug(fmt.Sprintf("%s_%s", providerDetail.ProviderName, doc.Slug), serviceName)
-				if doc.Language == "hcl" && (cs || cs_pn) && err == nil && err_pn == nil {
-					contentAvailable = true
-					content += fmt.Sprintf("\n- providerDocID: %s\n- Title: %s\n- Category: %s \n ---",
-						doc.ID, doc.Title, doc.Category)
+				if doc.Language == "hcl" && doc.Category == providerDetail.ProviderDataType {
+					cs, err := containsSlug(doc.Slug, serviceName)
+					cs_pn, err_pn := containsSlug(fmt.Sprintf("%s_%s", providerDetail.ProviderName, doc.Slug), serviceName)
+					if (cs || cs_pn) && err == nil && err_pn == nil {
+						contentAvailable = true
+						builder.WriteString(fmt.Sprintf("- providerDocID: %s\n- Title: %s\n- Category: %s\n---\n", doc.ID, doc.Title, doc.Category))
+					}
 				}
 			}
 
 			// Check if the content data is not fulfilled
 			if !contentAvailable {
-				errMessage := fmt.Sprintf(`No documentation found for provider '%s' in the '%s' namespace, %s`, providerDetail.ProviderName, providerDetail.ProviderNamespace, defaultErrorGuide)
+				errMessage := fmt.Sprintf(`No documentation found for serviceName query, %s provide a more relevant serviceName if unsure, use the providerName for its value`, serviceName)
 				return nil, logAndReturnError(logger, errMessage, err)
 			}
-			return mcp.NewToolResultText(content), nil
+			return mcp.NewToolResultText(builder.String()), nil
 		}
 }
 

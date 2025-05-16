@@ -8,7 +8,6 @@ type ContentType string
 const (
 	CONST_TYPE_RESOURCE    ContentType = "resources"
 	CONST_TYPE_DATA_SOURCE ContentType = "data-sources"
-	CONST_TYPE_BOTH        ContentType = "both"
 	CONST_TYPE_GUIDES      ContentType = "guides"
 	CONST_TYPE_FUNCTIONS   ContentType = "functions"
 	CONST_TYPE_OVERVIEW    ContentType = "overview"
@@ -61,7 +60,7 @@ var providerTestCases = []RegistryTestCase{
 	{
 		TestShouldFail:  false,
 		TestDescription: "Testing only with required values",
-		TestContentType: CONST_TYPE_BOTH,
+		TestContentType: CONST_TYPE_RESOURCE,
 		TestPayload: map[string]interface{}{
 			"providerName":      "dns",
 			"providerNamespace": "hashicorp",
@@ -71,10 +70,11 @@ var providerTestCases = []RegistryTestCase{
 	{
 		TestShouldFail:  false,
 		TestDescription: "Testing only with required values with the providerName prefix",
-		TestContentType: CONST_TYPE_BOTH,
+		TestContentType: CONST_TYPE_DATA_SOURCE,
 		TestPayload: map[string]interface{}{
 			"providerName":      "dns",
 			"providerNamespace": "hashicorp",
+			"providerDataType":  "data-sources",
 			"serviceName":       "dns_ns_record_set",
 		},
 	},
@@ -86,6 +86,7 @@ var providerTestCases = []RegistryTestCase{
 			"providerName":      "pinecone",
 			"providerNamespace": "pinecone-io",
 			"providerVersion":   "latest",
+			"providerDataType":  "resources",
 			"serviceName":       "pinecone_index",
 		},
 	},
@@ -96,6 +97,7 @@ var providerTestCases = []RegistryTestCase{
 		TestPayload: map[string]interface{}{
 			"providerName":      "terracurl",
 			"providerNamespace": "devops-rob",
+			"providerDataType":  "data-sources",
 			"serviceName":       "terracurl",
 		},
 	},
@@ -126,6 +128,7 @@ var providerTestCases = []RegistryTestCase{
 			"providerName":      "aws",
 			"providerNamespace": "hashicorp",
 			"providerVersion":   "latest",
+			"providerDataType":  "guides",
 			"serviceName":       "custom-service-endpoints",
 		},
 	},
@@ -137,6 +140,7 @@ var providerTestCases = []RegistryTestCase{
 			"providerName":      "google",
 			"providerNamespace": "hashicorp",
 			"providerVersion":   "latest",
+			"providerDataType":  "functions",
 			"serviceName":       "name_from_id",
 		},
 	},
@@ -148,6 +152,7 @@ var providerTestCases = []RegistryTestCase{
 			"providerName":      "google",
 			"providerNamespace": "hashicorp",
 			"providerVersion":   "latest",
+			"providerDataType":  "overview",
 			"serviceName":       "index",
 		},
 	},

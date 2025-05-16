@@ -85,9 +85,6 @@ func TestE2E(t *testing.T) {
 					require.Contains(t, textContent.Text, "Category: data-sources", "expected content to contain data-sources")
 				} else if testCase.TestContentType == CONST_TYPE_RESOURCE {
 					require.Contains(t, textContent.Text, "Category: resources", "expected content to contain resources")
-				} else if testCase.TestContentType == CONST_TYPE_BOTH {
-					require.Contains(t, textContent.Text, "Category: resources", "expected content to contain resources")
-					require.Contains(t, textContent.Text, "Category: data-sources", "expected content to contain data-sources")
 				} else if testCase.TestContentType == CONST_TYPE_GUIDES {
 					require.Contains(t, textContent.Text, "guide", "expected content to contain guide")
 				} else if testCase.TestContentType == CONST_TYPE_FUNCTIONS {
@@ -198,9 +195,6 @@ func TestE2E(t *testing.T) {
 					require.NotContains(t, textContent.Text, "**Category:** resources", "expected content not to contain resources")
 				} else if testCase.TestContentType == CONST_TYPE_RESOURCE {
 					require.NotContains(t, textContent.Text, "**Category:** data-sources", "expected content not to contain data-sources")
-				} else if testCase.TestContentType == CONST_TYPE_BOTH {
-					require.Contains(t, textContent.Text, "resource", "expected content to contain resources")
-					require.Contains(t, textContent.Text, "data source", "expected content to contain data-sources")
 				}
 			}
 		})
