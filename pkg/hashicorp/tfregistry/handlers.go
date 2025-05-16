@@ -19,14 +19,14 @@ import (
 // ResolveProviderDocID creates a tool to get provider details from registry.
 func ResolveProviderDocID(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("resolveProviderDocID",
-			mcp.WithDescription(`This tool retrieves a specific Terraform provider version. You MUST call this function before 'getProviderDocs' to obtain a valid tfprovider-compatible providerDocID. 
+			mcp.WithDescription(`This tool retrieves a list of potential documents based on the serviceSlug and providerDataType provided. You MUST call this function before 'getProviderDocs' to obtain a valid tfprovider-compatible providerDocID. 
 			Use the most relevant single word as the search query for serviceSlug, if unsure about the serviceSlug, use the providerName for its value.
-			When selecting the best match, consider: - Name similarity to the query - Description relevance Return the selected providerDocID and explain your choice.  
+			When selecting the best match, consider: - Title similarity to the query - Category relevance Return the selected providerDocID and explain your choice.  
 			If there are multiple good matches, mention this but proceed with the most relevant one.`),
 			mcp.WithString("providerName", mcp.Required(), mcp.Description("The name of the Terraform provider to perform the read or deployment operation")),
 			mcp.WithString("providerNamespace", mcp.Required(), mcp.Description("The publisher of the Terraform provider, typically the name of the company, or their GitHub organization name that created the provider")),
-			mcp.WithString("serviceSlug", mcp.Required(), mcp.Description("The slug of the service you want to deploy or read using the Terraform provider, prefer using a single word, use _ for multiple words and if unsure about the serviceSlug, use the providerName for its value")),
-			mcp.WithString("providerDataType", mcp.Description("The source type of the provider document to retrieve, for general information use 'guides', for deploying resources use 'resources', for reading already deployed resources use 'data-sources', for functions use 'functions', and for overview of the provider use 'overview'"),
+			mcp.WithString("serviceSlug", mcp.Required(), mcp.Description("The slug of the service you want to deploy or read using the Terraform provider, prefer using a single word, use underscores for multiple words and if unsure about the serviceSlug, use the providerName for its value")),
+			mcp.WithString("providerDataType", mcp.Description("The type of the document to retrieve, for general information use 'guides', for deploying resources use 'resources', for reading pre-deployed resources use 'data-sources', for functions use 'functions', and for overview of the provider use 'overview'"),
 				mcp.Enum("resources", "data-sources", "functions", "guides", "overview"),
 				mcp.DefaultString("resources"),
 			),
@@ -109,8 +109,8 @@ func ResolveProviderDocID(registryClient *http.Client, logger *log.Logger) (tool
 // GetProviderDocs creates a tool to get provider docs for a specific service from registry.
 func GetProviderDocs(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("getProviderDocs",
-			mcp.WithDescription(`Fetches up-to-date documentation fora specific service from a Terraform provider. You must call 'resolveProviderDocID' first to obtain the exact tfprovider-compatible providerDocID required to use this tool.`),
-			mcp.WithString("providerDocID", mcp.Required(), mcp.Description("Exact tfprovider-compatible providerDocID, (e.g., '8894603', '8906901') retrieved from 'resolveProviderDocID'")), // TODO: fix this
+			mcp.WithDescription(`Fetches up-to-date documentation for a specific service from a Terraform provider. You must call 'resolveProviderDocID' first to obtain the exact tfprovider-compatible providerDocID required to use this tool.`),
+			mcp.WithString("providerDocID", mcp.Required(), mcp.Description("Exact tfprovider-compatible providerDocID, (e.g., '8894603', '8906901') retrieved from 'resolveProviderDocID'")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			providerDocID, ok := request.Params.Arguments["providerDocID"].(string)
