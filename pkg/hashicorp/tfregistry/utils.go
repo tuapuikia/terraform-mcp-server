@@ -511,9 +511,11 @@ func GetProviderDocsV2(client *http.Client, providerDetail ProviderDetail, logge
 	}
 
 	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("Available Documentation (top matches) for %s in Terraform provider %s/%s version: %s\n\n", providerDetail.ProviderDataType, providerDetail.ProviderNamespace, providerDetail.ProviderName, providerDetail.ProviderVersion))
+	builder.WriteString("Each result includes:\n- providerDocID: tfprovider-compatible identifier\n- Title: Service or resource name\n- Category: Type of document\n")
+	builder.WriteString("For best results, select libraries based on the serviceSlug match and category of information requested.\n\n---\n\n")
 	for _, doc := range docs {
-		builder.WriteString(fmt.Sprintf("## %s\n\n**ID:** %s\n\n**Category:** %s\n\n**Subcategory:** %v\n\n**Path:** %s\n\n",
-			doc.Attributes.Title, doc.ID, doc.Attributes.Category, doc.Attributes.Subcategory, doc.Attributes.Path))
+		builder.WriteString(fmt.Sprintf("- providerDocID: %s\n- Title: %s\n- Category: %s\n---\n", doc.ID, doc.Attributes.Title, doc.Attributes.Category))
 	}
 
 	return builder.String(), nil
