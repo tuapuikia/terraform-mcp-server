@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"testing"
 	"strings"
+	"fmt"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -198,5 +199,92 @@ func TestUnmarshalModuleSingular_InvalidJSON(t *testing.T) {
 	_, err := UnmarshalModuleSingular(resp)
 	if err == nil || !strings.Contains(err.Error(), "unmarshalling module details") {
 		t.Errorf("expected unmarshalling error, got %v", err)
+	}
+}
+
+// --- Others---
+
+func TestExtractProviderNameAndVersion(t *testing.T) {
+	uri := "registry://providers/hashicorp/namespace/aws/version/3.0.0"
+	ns, name, version := ExtractProviderNameAndVersion(uri)
+	if ns != "hashicorp" || name != "aws" || version != "3.0.0" {
+		t.Errorf("expected (hashicorp, aws, 3.0.0), got (%s, %s, %s)", ns, name, version)
+	}
+}
+
+func TestConstructProviderVersionURI(t *testing.T) {
+	uri := ConstructProviderVersionURI("hashicorp", "aws", "3.0.0")
+	expected := "registry://providers/hashicorp/providers/aws/versions/3.0.0"
+	if uri != expected {
+		t.Errorf("expected %q, got %q", expected, uri)
+	}
+}
+
+func TestContainsSlug(t *testing.T) {
+	ok, err := containsSlug("aws_s3_bucket", "s3")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ok {
+		t.Errorf("expected true, got false")
+	}
+	ok, err = containsSlug("aws_s3_bucket", "ec2")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ok {
+		t.Errorf("expected false, got true")
+	}
+}
+
+func TestIsValidProviderVersionFormat(t *testing.T) {
+	valid := []string{"1.0.0", "v1.2.3", "1.0.0-beta"}
+	invalid := []string{"1.0", "v1", "foo", ""}
+	for _, v := range valid {
+		if !isValidProviderVersionFormat(v) {
+			t.Errorf("expected %q to be valid", v)
+		}
+	}
+	for _, v := range invalid {
+		if isValidProviderVersionFormat(v) {
+			t.Errorf("expected %q to be invalid", v)
+		}
+	}
+}
+
+func TestIsValidProviderDataType(t *testing.T) {
+	valid := []string{"resources", "data-sources", "functions", "guides", "overview"}
+	invalid := []string{"foo", "bar", ""}
+	for _, v := range valid {
+		if !isValidProviderDataType(v) {
+			t.Errorf("expected %q to be valid", v)
+		}
+	}
+	for _, v := range invalid {
+		if isValidProviderDataType(v) {
+			t.Errorf("expected %q to be invalid", v)
+		}
+	}
+}
+
+func TestLogAndReturnError_NilLogger(t *testing.T) {
+	err := logAndReturnError(nil, "context", fmt.Errorf("fail"))
+	if err == nil || !strings.Contains(err.Error(), "context") {
+		t.Errorf("expected error to contain context, got %v", err)
+	}
+}
+
+func TestIsV2ProviderDataType(t *testing.T) {
+	valid := []string{"guides", "functions", "overview"}
+	invalid := []string{"resources", "data-sources", "foo"}
+	for _, v := range valid {
+		if !isV2ProviderDataType(v) {
+			t.Errorf("expected %q to be valid v2 data type", v)
+		}
+	}
+	for _, v := range invalid {
+		if isV2ProviderDataType(v) {
+			t.Errorf("expected %q to be invalid v2 data type", v)
+		}
 	}
 }
