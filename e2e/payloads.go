@@ -8,7 +8,6 @@ type ContentType string
 const (
 	CONST_TYPE_RESOURCE    ContentType = "resources"
 	CONST_TYPE_DATA_SOURCE ContentType = "data-sources"
-	CONST_TYPE_BOTH        ContentType = "both"
 	CONST_TYPE_GUIDES      ContentType = "guides"
 	CONST_TYPE_FUNCTIONS   ContentType = "functions"
 	CONST_TYPE_OVERVIEW    ContentType = "overview"
@@ -21,7 +20,7 @@ type RegistryTestCase struct {
 	TestPayload     map[string]interface{} `json:"testPayload,omitempty"`
 }
 
-var providerDetailsTestCases = []RegistryTestCase{
+var providerTestCases = []RegistryTestCase{
 	{
 		TestShouldFail:  true,
 		TestDescription: "Testing with empty payload",
@@ -38,7 +37,7 @@ var providerDetailsTestCases = []RegistryTestCase{
 		TestPayload: map[string]interface{}{
 			"providerName":      "azurerm",
 			"providerNamespace": "hashicorp",
-			"serviceName":       "azurerm_iot_security_solution",
+			"serviceSlug":       "azurerm_iot_security_solution",
 		},
 	},
 	{
@@ -47,7 +46,7 @@ var providerDetailsTestCases = []RegistryTestCase{
 		TestPayload: map[string]interface{}{
 			"providerName":    "aws",
 			"providerVersion": "latest",
-			"serviceName":     "aws_s3_bucket",
+			"serviceSlug":     "aws_s3_bucket",
 		},
 	},
 	{
@@ -61,23 +60,34 @@ var providerDetailsTestCases = []RegistryTestCase{
 	{
 		TestShouldFail:  false,
 		TestDescription: "Testing only with required values",
-		TestContentType: CONST_TYPE_BOTH,
+		TestContentType: CONST_TYPE_RESOURCE,
 		TestPayload: map[string]interface{}{
 			"providerName":      "dns",
 			"providerNamespace": "hashicorp",
-			"serviceName":       "dns_ns_record_set",
+			"serviceSlug":       "ns_record_set",
 		},
 	},
 	{
 		TestShouldFail:  false,
-		TestDescription: "Testing resources with all values for hashicorp providerNamespace",
+		TestDescription: "Testing only with required values with the providerName prefix",
+		TestContentType: CONST_TYPE_DATA_SOURCE,
+		TestPayload: map[string]interface{}{
+			"providerName":      "dns",
+			"providerNamespace": "hashicorp",
+			"providerDataType":  "data-sources",
+			"serviceSlug":       "dns_ns_record_set",
+		},
+	},
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing resources with all values for non-hashicorp providerNamespace",
 		TestContentType: CONST_TYPE_RESOURCE,
 		TestPayload: map[string]interface{}{
 			"providerName":      "pinecone",
 			"providerNamespace": "pinecone-io",
 			"providerVersion":   "latest",
 			"providerDataType":  "resources",
-			"serviceName":       "pinecone_index",
+			"serviceSlug":       "pinecone_index",
 		},
 	},
 	{
@@ -88,7 +98,7 @@ var providerDetailsTestCases = []RegistryTestCase{
 			"providerName":      "terracurl",
 			"providerNamespace": "devops-rob",
 			"providerDataType":  "data-sources",
-			"serviceName":       "terracurl",
+			"serviceSlug":       "terracurl",
 		},
 	},
 	{
@@ -98,7 +108,7 @@ var providerDetailsTestCases = []RegistryTestCase{
 			"providerName":      "vault",
 			"providerNamespace": "hashicorp-malformed",
 			"providerVersion":   "latest",
-			"serviceName":       "vault_aws_auth_backend_role",
+			"serviceSlug":       "vault_aws_auth_backend_role",
 		},
 	},
 	{
@@ -119,7 +129,7 @@ var providerDetailsTestCases = []RegistryTestCase{
 			"providerNamespace": "hashicorp",
 			"providerVersion":   "latest",
 			"providerDataType":  "guides",
-			"serviceName":       "custom-service-endpoints",
+			"serviceSlug":       "custom-service-endpoints",
 		},
 	},
 	{
@@ -131,7 +141,7 @@ var providerDetailsTestCases = []RegistryTestCase{
 			"providerNamespace": "hashicorp",
 			"providerVersion":   "latest",
 			"providerDataType":  "functions",
-			"serviceName":       "name_from_id",
+			"serviceSlug":       "name_from_id",
 		},
 	},
 	{
@@ -143,11 +153,45 @@ var providerDetailsTestCases = []RegistryTestCase{
 			"providerNamespace": "hashicorp",
 			"providerVersion":   "latest",
 			"providerDataType":  "overview",
-			"serviceName":       "index",
+			"serviceSlug":       "index",
 		},
 	},
 }
 
+var providerDocsTestCases = []RegistryTestCase{
+	{
+		TestShouldFail:  true,
+		TestDescription: "Testing providerDocs with empty payload",
+		TestPayload:     map[string]interface{}{},
+	},
+	{
+		TestShouldFail:  true,
+		TestDescription: "Testing providerDocs with empty providerDocID",
+		TestPayload: map[string]interface{}{
+			"providerDocID": "",
+		},
+	},
+	{
+		TestShouldFail:  true,
+		TestDescription: "Testing providerDocs with invalid providerDocID",
+		TestPayload: map[string]interface{}{
+			"providerDocID": "invalid-doc-id",
+		},
+	},
+	{
+		TestShouldFail:  false,
+		TestDescription: "Testing providerDocs with all correct providerDocID value",
+		TestPayload: map[string]interface{}{
+			"providerDocID": "8894603",
+		},
+	}, {
+		TestShouldFail:  true,
+		TestDescription: "Testing providerDocs with incorrect numeric providerDocID value",
+		TestPayload: map[string]interface{}{
+			"providerDocID": "3356809",
+		},
+	},
+}
 var searchModulesTestCases = []RegistryTestCase{
 	{
 		TestShouldFail:  true,
@@ -170,8 +214,8 @@ var searchModulesTestCases = []RegistryTestCase{
 		TestShouldFail:  false,
 		TestDescription: "Testing searchModules with moduleQuery '' and currentOffset 10",
 		TestPayload: map[string]interface{}{
-			"moduleQuery": "",
-			"currentOffset":  10,
+			"moduleQuery":   "",
+			"currentOffset": 10,
 		},
 	},
 	{
@@ -238,7 +282,7 @@ var moduleDetailsTestCases = []RegistryTestCase{
 	{
 		TestShouldFail:  true,
 		TestDescription: "Testing moduleDetails missing moduleID",
-		TestPayload: map[string]interface{}{},
+		TestPayload:     map[string]interface{}{},
 	},
 	{
 		TestShouldFail:  true,

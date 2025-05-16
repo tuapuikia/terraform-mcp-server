@@ -122,13 +122,12 @@ If you don't have Docker, you can use `make build` to build the binary directly 
 
 The following sets of tools are available:
 
-| Toolset     | Tool                       | Description                                                                                                           |
-|-------------|----------------------------|-----------------------------------------------------------------------------------------------------------------------|
-| `providers` | `providerDetails`          | Get comprehensive information about a specific provider, including its resources, data sources, functions, guides, and overview |
-| `providers` | `providerResourceDetails`  | Get detailed documentation, schema, and code examples for a specific provider resource or data source                 |
-| `modules`   | `searchModules`            | Search and list available Terraform modules with filtering and pagination support                                      |
-| `modules`   | `moduleDetails`            | Get comprehensive details about a specific module, including its inputs, outputs, root configuration, submodules, and examples |
-
+| Toolset     | Tool                   | Description                                                                                                                                                                                                                                                    |
+|-------------|------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `providers` | `resolveProviderDocID` | Queries the Terraform Registry to find and list available documentation for a specific provider using the specified `serviceSlug`. Returns a list of provider document IDs with their titles and categories for resources, data sources, functions, or guides. |
+| `providers` | `getProviderDocs`      | Fetches the complete documentation content for a specific provider resource, data source, or function using a document ID obtained from the `resolveProviderDocID` tool. Returns the raw documentation in markdown format.                                     |
+| `modules`   | `searchModules`        | Searches the Terraform Registry for modules based on specified `moduleQuery` with pagination. Returns a list of module IDs with their names, descriptions, download counts, verification status, and publish dates                                             |
+| `modules`   | `moduleDetails`        | Retrieves detailed documentation for a module using a module ID obtained from the `searchModules` tool including inputs, outputs, configuration, submodules, and examples.                                                                                     |
 
 ## Development
 

@@ -72,7 +72,7 @@ func GetProviderOverviewDocs(registryClient *http.Client, providerVersionID stri
 	if err != nil {
 		return "", logAndReturnError(logger, "getting provider docs overview", err)
 	}
-	var providerOverview ProviderOverview
+	var providerOverview ProviderOverviewStruct
 	if err := json.Unmarshal(response, &providerOverview); err != nil {
 		return "", logAndReturnError(logger, "getting provider docs request unmarshalling", err)
 	}
@@ -87,33 +87,6 @@ func GetProviderOverviewDocs(registryClient *http.Client, providerVersionID stri
 	}
 
 	return resourceContent, nil
-}
-
-func GetProviderDocs(registryClient *http.Client, providerVersionID string, dataCategory string, logger *log.Logger) (string, error) {
-	// https://registry.terraform.io/v2/provider-versions/70800?include=provider-docs&filter[language]=hcl
-	uri := fmt.Sprintf("provider-versions/%s?include=provider-docs&filter[language]=hcl", providerVersionID)
-	if dataCategory != "" {
-		uri += fmt.Sprintf("&filter[category]=%s", dataCategory)
-	}
-	response, err := sendRegistryCall(registryClient, "GET", uri, logger, "v2")
-	if err != nil {
-		return "", logAndReturnError(logger, "Error getting provider docs", err)
-	}
-	var providerVersionResponse ProviderVersionResponse
-	if err := json.Unmarshal(response, &providerVersionResponse); err != nil {
-		return "", logAndReturnError(logger, "Error getting provider docs request unmarshalling", err)
-	}
-	content := fmt.Sprintf("# Provider: %s\n", providerVersionResponse.Data.Attributes.Description)
-	content += fmt.Sprintf("## Total downloads for provider version %s: %d\n\n", providerVersionResponse.Data.Attributes.Version, providerVersionResponse.Data.Attributes.Downloads)
-
-	for _, providerDetails := range providerVersionResponse.Included {
-		resourceContent, err := GetProviderResouceDocs(registryClient, providerDetails.ID, logger)
-		if err != nil {
-			return "", logAndReturnError(logger, "Error getting provider resource docs", err)
-		}
-		content += fmt.Sprintf("%s \n\n", resourceContent)
-	}
-	return content, fmt.Errorf("provider version %s not found", providerVersionID)
 }
 
 func GetProviderResouceDocs(registryClient *http.Client, providerDocsID string, logger *log.Logger) (string, error) {
@@ -157,56 +130,15 @@ func GetLatestProviderVersion(providerClient *http.Client, providerNamespace, pr
 	return providerVersionLatest.Version, nil
 }
 
-func GetProviderResourceDetails(client *http.Client, providerDetail ProviderDetail, serviceName string, logger *log.Logger) (string, error) {
-	var content string
-
-	uri := fmt.Sprintf("providers/%s/%s/%s", providerDetail.ProviderNamespace, providerDetail.ProviderName, providerDetail.ProviderVersion)
-	response, err := sendRegistryCall(client, "GET", uri, logger)
-	if err != nil {
-		return "", logAndReturnError(logger, "getting provider details", err)
-	}
-
-	var providerDocs ProviderDocs
-	if err := json.Unmarshal(response, &providerDocs); err != nil {
-		return "", logAndReturnError(logger, "unmarshalling provider docs", err)
-	}
-
-	content = fmt.Sprintf("# %s provider docs\n\n", providerDetail.ProviderName)
-	for _, doc := range providerDocs.Docs {
-		// restrictData determines whether the data should be restricted based on the provider data type.
-		// It evaluates to true if providerDataType is not empty and does not match the doc's category.
-		restrictData := providerDetail.ProviderDataType != "" && providerDetail.ProviderDataType != doc.Category
-		if !restrictData {
-			if match, err := containsSlug(serviceName, doc.Slug); err == nil && match && doc.Language == "hcl" {
-				response, err := sendRegistryCall(client, "GET", fmt.Sprintf("provider-docs/%s", doc.ID), logger, "v2")
-				if err != nil {
-					logger.Errorf("Error sending request for provider-docs/%s: %v", doc.ID, err)
-					continue
-				}
-				var details ProviderResourceDetails
-				if err := json.Unmarshal(response, &details); err == nil {
-					content += details.Data.Attributes.Content
-				} else {
-					logger.Errorf("Error unmarshalling provider resource details: %v", err)
-				}
-			} else if err != nil {
-				logger.Errorf("Error checking slug match: %v", err)
-			}
-		}
-	}
-	return content, nil
-}
-
 // GetProviderResourceDetailsV2 fetches the provider resource details using v2 API with support for pagination using page numbers
-func GetProviderResourceDetailsV2(client *http.Client, providerDetail ProviderDetail, serviceName string, logger *log.Logger) (string, error) {
+func GetProviderResourceDetailsV2(client *http.Client, providerDetail ProviderDetail, serviceSlug string, logger *log.Logger) (string, error) {
 	providerVersionID, err := GetProviderVersionID(client, providerDetail.ProviderNamespace, providerDetail.ProviderName, providerDetail.ProviderVersion, logger)
 	if err != nil {
 		return "", logAndReturnError(logger, "getting provider version ID", err)
 	}
 
 	uriPrefix := fmt.Sprintf("provider-docs?filter[provider-version]=%s&filter[category]=%s&filter[slug]=%s&filter[language]=hcl",
-		providerVersionID, providerDetail.ProviderDataType, serviceName)
-
+		providerVersionID, providerDetail.ProviderDataType, serviceSlug)
 	docs, err := sendPaginatedRegistryCall[ProviderDocData](client, uriPrefix, logger)
 	if err != nil {
 		return "", err
@@ -234,7 +166,7 @@ func GetProviderResourceDetailsV2(client *http.Client, providerDetail ProviderDe
 // containsSlug checks if the sourceName string contains the slug string anywhere within it.
 // It safely handles potential regex metacharacters in the slug.
 // TODO: include a unit test for this
-func containsSlug(sourceName, slug string) (bool, error) {
+func containsSlug(sourceName string, slug string) (bool, error) {
 	// Use regexp.QuoteMeta to escape any special regex characters in the slug.
 	// This ensures the slug is treated as a literal string in the pattern.
 	escapedSlug := regexp.QuoteMeta(slug)
@@ -547,8 +479,11 @@ func sendPaginatedRegistryCall[T any](client *http.Client, uriPrefix string, log
 func logAndReturnError(logger *log.Logger, context string, err error) error {
 	if err == nil {
 		err = fmt.Errorf("%s", context)
+		logger.Errorf("Error in %s", context)
+	} else {
+		err = fmt.Errorf("%s: %v", context, err)
+		logger.Errorf("Error in %s: %v", context, err)
 	}
-	logger.Errorf("Error in %s: %v", context, err)
 	return err
 }
 
@@ -576,9 +511,11 @@ func GetProviderDocsV2(client *http.Client, providerDetail ProviderDetail, logge
 	}
 
 	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("Available Documentation (top matches) for %s in Terraform provider %s/%s version: %s\n\n", providerDetail.ProviderDataType, providerDetail.ProviderNamespace, providerDetail.ProviderName, providerDetail.ProviderVersion))
+	builder.WriteString("Each result includes:\n- providerDocID: tfprovider-compatible identifier\n- Title: Service or resource name\n- Category: Type of document\n")
+	builder.WriteString("For best results, select libraries based on the serviceSlug match and category of information requested.\n\n---\n\n")
 	for _, doc := range docs {
-		builder.WriteString(fmt.Sprintf("## %s\n\n**ID:** %s\n\n**Category:** %s\n\n**Subcategory:** %v\n\n**Path:** %s\n\n",
-			doc.Attributes.Title, doc.ID, doc.Attributes.Category, doc.Attributes.Subcategory, doc.Attributes.Path))
+		builder.WriteString(fmt.Sprintf("- providerDocID: %s\n- Title: %s\n- Category: %s\n---\n", doc.ID, doc.Attributes.Title, doc.Attributes.Category))
 	}
 
 	return builder.String(), nil
