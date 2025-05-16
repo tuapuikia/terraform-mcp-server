@@ -37,7 +37,7 @@ var providerTestCases = []RegistryTestCase{
 		TestPayload: map[string]interface{}{
 			"providerName":      "azurerm",
 			"providerNamespace": "hashicorp",
-			"serviceName":       "azurerm_iot_security_solution",
+			"serviceSlug":       "azurerm_iot_security_solution",
 		},
 	},
 	{
@@ -46,7 +46,7 @@ var providerTestCases = []RegistryTestCase{
 		TestPayload: map[string]interface{}{
 			"providerName":    "aws",
 			"providerVersion": "latest",
-			"serviceName":     "aws_s3_bucket",
+			"serviceSlug":     "aws_s3_bucket",
 		},
 	},
 	{
@@ -64,7 +64,7 @@ var providerTestCases = []RegistryTestCase{
 		TestPayload: map[string]interface{}{
 			"providerName":      "dns",
 			"providerNamespace": "hashicorp",
-			"serviceName":       "ns_record_set",
+			"serviceSlug":       "ns_record_set",
 		},
 	},
 	{
@@ -75,7 +75,7 @@ var providerTestCases = []RegistryTestCase{
 			"providerName":      "dns",
 			"providerNamespace": "hashicorp",
 			"providerDataType":  "data-sources",
-			"serviceName":       "dns_ns_record_set",
+			"serviceSlug":       "dns_ns_record_set",
 		},
 	},
 	{
@@ -87,7 +87,7 @@ var providerTestCases = []RegistryTestCase{
 			"providerNamespace": "pinecone-io",
 			"providerVersion":   "latest",
 			"providerDataType":  "resources",
-			"serviceName":       "pinecone_index",
+			"serviceSlug":       "pinecone_index",
 		},
 	},
 	{
@@ -98,7 +98,7 @@ var providerTestCases = []RegistryTestCase{
 			"providerName":      "terracurl",
 			"providerNamespace": "devops-rob",
 			"providerDataType":  "data-sources",
-			"serviceName":       "terracurl",
+			"serviceSlug":       "terracurl",
 		},
 	},
 	{
@@ -108,7 +108,7 @@ var providerTestCases = []RegistryTestCase{
 			"providerName":      "vault",
 			"providerNamespace": "hashicorp-malformed",
 			"providerVersion":   "latest",
-			"serviceName":       "vault_aws_auth_backend_role",
+			"serviceSlug":       "vault_aws_auth_backend_role",
 		},
 	},
 	{
@@ -129,7 +129,7 @@ var providerTestCases = []RegistryTestCase{
 			"providerNamespace": "hashicorp",
 			"providerVersion":   "latest",
 			"providerDataType":  "guides",
-			"serviceName":       "custom-service-endpoints",
+			"serviceSlug":       "custom-service-endpoints",
 		},
 	},
 	{
@@ -141,7 +141,7 @@ var providerTestCases = []RegistryTestCase{
 			"providerNamespace": "hashicorp",
 			"providerVersion":   "latest",
 			"providerDataType":  "functions",
-			"serviceName":       "name_from_id",
+			"serviceSlug":       "name_from_id",
 		},
 	},
 	{
@@ -153,7 +153,7 @@ var providerTestCases = []RegistryTestCase{
 			"providerNamespace": "hashicorp",
 			"providerVersion":   "latest",
 			"providerDataType":  "overview",
-			"serviceName":       "index",
+			"serviceSlug":       "index",
 		},
 	},
 }

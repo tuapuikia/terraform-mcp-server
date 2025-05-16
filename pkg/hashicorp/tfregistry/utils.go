@@ -131,14 +131,14 @@ func GetLatestProviderVersion(providerClient *http.Client, providerNamespace, pr
 }
 
 // GetProviderResourceDetailsV2 fetches the provider resource details using v2 API with support for pagination using page numbers
-func GetProviderResourceDetailsV2(client *http.Client, providerDetail ProviderDetail, serviceName string, logger *log.Logger) (string, error) {
+func GetProviderResourceDetailsV2(client *http.Client, providerDetail ProviderDetail, serviceSlug string, logger *log.Logger) (string, error) {
 	providerVersionID, err := GetProviderVersionID(client, providerDetail.ProviderNamespace, providerDetail.ProviderName, providerDetail.ProviderVersion, logger)
 	if err != nil {
 		return "", logAndReturnError(logger, "getting provider version ID", err)
 	}
 
 	uriPrefix := fmt.Sprintf("provider-docs?filter[provider-version]=%s&filter[category]=%s&filter[slug]=%s&filter[language]=hcl",
-		providerVersionID, providerDetail.ProviderDataType, serviceName)
+		providerVersionID, providerDetail.ProviderDataType, serviceSlug)
 	docs, err := sendPaginatedRegistryCall[ProviderDocData](client, uriPrefix, logger)
 	if err != nil {
 		return "", err
