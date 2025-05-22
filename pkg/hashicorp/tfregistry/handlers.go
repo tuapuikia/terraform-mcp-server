@@ -23,6 +23,8 @@ func ResolveProviderDocID(registryClient *http.Client, logger *log.Logger) (tool
 			Use the most relevant single word as the search query for serviceSlug, if unsure about the serviceSlug, use the providerName for its value.
 			When selecting the best match, consider: - Title similarity to the query - Category relevance Return the selected providerDocID and explain your choice.  
 			If there are multiple good matches, mention this but proceed with the most relevant one.`),
+			mcp.WithTitleAnnotation("Identify the most relevant provider document ID for a Terraform service"),
+			mcp.WithReadOnlyHintAnnotation(true),
 			mcp.WithString("providerName", mcp.Required(), mcp.Description("The name of the Terraform provider to perform the read or deployment operation")),
 			mcp.WithString("providerNamespace", mcp.Required(), mcp.Description("The publisher of the Terraform provider, typically the name of the company, or their GitHub organization name that created the provider")),
 			mcp.WithString("serviceSlug", mcp.Required(), mcp.Description("The slug of the service you want to deploy or read using the Terraform provider, prefer using a single word, use underscores for multiple words and if unsure about the serviceSlug, use the providerName for its value")),
@@ -110,6 +112,8 @@ func ResolveProviderDocID(registryClient *http.Client, logger *log.Logger) (tool
 func GetProviderDocs(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("getProviderDocs",
 			mcp.WithDescription(`Fetches up-to-date documentation for a specific service from a Terraform provider. You must call 'resolveProviderDocID' first to obtain the exact tfprovider-compatible providerDocID required to use this tool.`),
+			mcp.WithTitleAnnotation("Fetch detailed Terraform provider documentation using a document ID"),
+			mcp.WithOpenWorldHintAnnotation(true),
 			mcp.WithString("providerDocID", mcp.Required(), mcp.Description("Exact tfprovider-compatible providerDocID, (e.g., '8894603', '8906901') retrieved from 'resolveProviderDocID'")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -134,6 +138,8 @@ func GetProviderDocs(registryClient *http.Client, logger *log.Logger) (tool mcp.
 func SearchModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("searchModules",
 			mcp.WithDescription(`Resolves a Terraform module name to obtain a compatible moduleID for the moduleDetails tool and returns a list of matching Terraform modules. You MUST call this function before 'moduleDetails' to obtain a valid and compatible moduleID. When selecting the best match, consider: - Name similarity to the query - Description relevance - Verification status (verified) - Download counts (popularity) Return the selected moduleID and explain your choice. If there are multiple good matches, mention this but proceed with the most relevant one. If no modules were found, reattempt the search with a new moduleName query.`),
+			mcp.WithTitleAnnotation("Search and match Terraform modules based on name and relevance"),
+			mcp.WithOpenWorldHintAnnotation(true),
 			mcp.WithString("moduleQuery",
 				mcp.Required(),
 				mcp.Description("The query to search for Terraform modules."),
@@ -177,6 +183,8 @@ func SearchModules(registryClient *http.Client, logger *log.Logger) (tool mcp.To
 func ModuleDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("moduleDetails",
 			mcp.WithDescription(`Fetches up-to-date documentation on how to use a Terraform module. You must call 'searchModules' first to obtain the exact valid and compatible moduleID required to use this tool.`),
+			mcp.WithTitleAnnotation("Retrieve documentation for a specific Terraform module"),
+			mcp.WithOpenWorldHintAnnotation(true),
 			mcp.WithString("moduleID",
 				mcp.Required(),
 				mcp.Description("Exact valid and compatible moduleID retrieved from searchModules (e.g., 'squareops/terraform-kubernetes-mongodb/mongodb/2.1.1', 'GoogleCloudPlatform/vertex-ai/google/0.2.0')"),
