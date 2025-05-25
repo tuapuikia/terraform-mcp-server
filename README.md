@@ -82,6 +82,53 @@ More about using MCP server tools in Claude Desktop [user documentation](https:/
 }
 ```
 
+### Usage without Docker
+
+Use the latest release version:
+
+```console
+go install github.com/hashicorp/terraform-mcp-server/cmd/terraform-mcp-server@latest
+
+Use the main branch:
+
+```console
+go install github.com/hashicorp/terraform-mcp-server/cmd/terraform-mcp-server@main
+```
+
+then
+
+#### Usage with VS Code
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "terraform": {
+        "command": "/path/to/terraform-mcp-server",
+        "args": [
+          "stdio"
+        ]
+      }
+    }
+  }
+}
+```
+
+#### Usage with Claude Desktop
+
+```json
+{
+  "mcpServers": {
+    "terraform": {
+      "command": "/path/to/terraform-mcp-server",
+      "args": [
+        "stdio"
+      ]
+    }
+  }
+}
+```
+
 ## Tool Configuration
 
 ### Available Toolsets
