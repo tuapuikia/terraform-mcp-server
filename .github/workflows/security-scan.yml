@@ -63,9 +63,7 @@ jobs:
         uses: ./security-scanner
         with:
           repository: "$PWD"
-        env:
-          SECURITY_SCANNER_CONFIG_FILE: scan.hcl
-          # See scan.hcl at repository .github location for config.
+          plugins: "codeql"
 
       - name: SARIF Output
         shell: bash
