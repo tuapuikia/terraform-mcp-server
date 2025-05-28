@@ -88,6 +88,7 @@ Use the latest release version:
 
 ```console
 go install github.com/hashicorp/terraform-mcp-server/cmd/terraform-mcp-server@latest
+```
 
 Use the main branch:
 
