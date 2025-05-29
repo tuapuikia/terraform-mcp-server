@@ -8,44 +8,110 @@ package tfregistry
 import (
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // --- sendRegistryCall ---
 
-var client = &http.Client{
-	Transport: &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-	},
-}
-
-var logger = log.New()
-
 func TestSendRegistryCall(t *testing.T) {
 	tests := []struct {
-		name      string
-		uri       string
-		version   string
-		expectErr string
+		name             string
+		uri              string
+		apiVersion       string
+		httpMethod       string
+		mockStatusCode   int
+		mockResponse     string
+		expectErrContent string
 	}{
-		{"Success_v1", "providers/hashicorp/aws", "v1", ""},
-		{"Success_v2", "provider-docs?filter[provider-version]=6221", "v2", ""},
-		{"404NotFound_v1", "test-uri", "v1", "error: 404 Not Found"},
-		{"404NotFound_v2", "test-uri", "v2", "error: 404 Not Found"},
+		{
+			name:             "Success_v1_GET",
+			uri:              "providers/hashicorp/aws",
+			apiVersion:       "v1",
+			httpMethod:       "GET",
+			mockStatusCode:   http.StatusOK,
+			mockResponse:     `{"data": "success_v1"}`,
+			expectErrContent: "",
+		},
+		{
+			name:             "Success_v2_GET_WithQuery",
+			uri:              "provider-docs?filter[provider-version]=6221",
+			apiVersion:       "v2",
+			httpMethod:       "GET",
+			mockStatusCode:   http.StatusOK,
+			mockResponse:     `{"data": "success_v2"}`,
+			expectErrContent: "",
+		},
+		{
+			name:             "404NotFound_v1_GET",
+			uri:              "test-uri-v1",
+			apiVersion:       "v1",
+			httpMethod:       "GET",
+			mockStatusCode:   http.StatusNotFound,
+			mockResponse:     `{"error": "not_found_v1"}`,
+			expectErrContent: "status 404",
+		},
+		{
+			name:             "404NotFound_v2_GET",
+			uri:              "test-uri-v2",
+			apiVersion:       "v2",
+			httpMethod:       "GET",
+			mockStatusCode:   http.StatusNotFound,
+			mockResponse:     `{"error": "not_found_v2"}`,
+			expectErrContent: "status 404",
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := sendRegistryCall(client, "GET", tc.uri, logger, "v2")
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != tc.httpMethod {
+					t.Errorf("Handler: Expected method %s, got %s", tc.httpMethod, r.Method)
+					http.Error(w, "Bad method", http.StatusBadRequest)
+					return
+				}
 
-			if tc.expectErr == "" && err != nil {
-				t.Fatalf("expected no error, got %v", err)
-			}
-			if tc.expectErr != "" && (err == nil || err.Error() != tc.expectErr) {
-				t.Errorf("expected %q, got %v", tc.expectErr, err)
+				expectedPathPart := strings.Split(tc.uri, "?")[0]
+				var expectedFullPrefix string
+				if tc.apiVersion == "v1" {
+					expectedFullPrefix = "/v1/" + strings.TrimPrefix(expectedPathPart, "/")
+				} else {
+					expectedFullPrefix = "/v2/" + strings.TrimPrefix(expectedPathPart, "/")
+				}
+
+				if !strings.HasPrefix(r.URL.Path, expectedFullPrefix) {
+					t.Errorf("Handler: Expected path prefix %s, got %s", expectedFullPrefix, r.URL.Path)
+					http.Error(w, "Bad path", http.StatusBadRequest)
+					return
+				}
+
+				if tc.name == "Success_v2_GET_WithQuery" {
+					if r.URL.Query().Get("filter[provider-version]") != "6221" {
+						t.Errorf("Handler: Expected query 'filter[provider-version]=6221', got query: '%s'", r.URL.RawQuery)
+						http.Error(w, "Bad query params", http.StatusBadRequest)
+						return
+					}
+				}
+
+				w.WriteHeader(tc.mockStatusCode)
+				fmt.Fprint(w, tc.mockResponse)
+			}))
+			defer server.Close()
+
+			_, err := sendRegistryCall(server.Client(), tc.httpMethod, tc.uri, nil, tc.apiVersion, server.URL)
+
+			if tc.expectErrContent == "" {
+				if err != nil {
+					t.Fatalf("TestSendRegistryCall (%s): expected no error, got %v", tc.name, err)
+				}
+			} else {
+				if err == nil {
+					t.Fatalf("TestSendRegistryCall (%s): expected error containing %q, got nil", tc.name, tc.expectErrContent)
+				}
+				if !strings.Contains(err.Error(), tc.expectErrContent) {
+					t.Errorf("TestSendRegistryCall (%s): expected error string %q to contain %q", tc.name, err.Error(), tc.expectErrContent)
+				}
 			}
 		})
 	}
