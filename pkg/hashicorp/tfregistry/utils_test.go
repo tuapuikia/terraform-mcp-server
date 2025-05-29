@@ -11,9 +11,13 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // --- sendRegistryCall ---
+
+var logger = log.New()
 
 func TestSendRegistryCall(t *testing.T) {
 	tests := []struct {
@@ -99,7 +103,7 @@ func TestSendRegistryCall(t *testing.T) {
 			}))
 			defer server.Close()
 
-			_, err := sendRegistryCall(server.Client(), tc.httpMethod, tc.uri, nil, tc.apiVersion, server.URL)
+			_, err := sendRegistryCall(server.Client(), tc.httpMethod, tc.uri, logger, tc.apiVersion, server.URL)
 
 			if tc.expectErrContent == "" {
 				if err != nil {
