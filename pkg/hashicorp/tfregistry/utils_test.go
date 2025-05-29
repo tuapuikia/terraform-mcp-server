@@ -54,7 +54,7 @@ func TestSendRegistryCall(t *testing.T) {
 			httpMethod:       "GET",
 			mockStatusCode:   http.StatusNotFound,
 			mockResponse:     `{"error": "not_found_v1"}`,
-			expectErrContent: "status 404",
+			expectErrContent: "404 Not Found",
 		},
 		{
 			name:             "404NotFound_v2_GET",
@@ -63,7 +63,7 @@ func TestSendRegistryCall(t *testing.T) {
 			httpMethod:       "GET",
 			mockStatusCode:   http.StatusNotFound,
 			mockResponse:     `{"error": "not_found_v2"}`,
-			expectErrContent: "status 404",
+			expectErrContent: "404 Not Found",
 		},
 	}
 
