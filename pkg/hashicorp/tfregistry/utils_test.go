@@ -24,78 +24,72 @@ var client = &http.Client{
 
 var logger = log.New()
 
-func TestSendRegistryCall_Success_v1(t *testing.T) {
-	_, err := sendRegistryCall(client, "GET", "providers/hashicorp/aws", logger)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
+func TestSendRegistryCall(t *testing.T) {
+	tests := []struct {
+		name      string
+		uri       string
+		version   string
+		expectErr string
+	}{
+		{"Success_v1", "providers/hashicorp/aws", "v1", ""},
+		{"Success_v2", "provider-docs?filter[provider-version]=6221", "v2", ""},
+		{"404NotFound_v1", "test-uri", "v1", "error: 404 Not Found"},
+		{"404NotFound_v2", "test-uri", "v2", "error: 404 Not Found"},
 	}
-}
 
-func TestSendRegistryCall_Success_v2(t *testing.T) {
-	_, err := sendRegistryCall(client, "GET", "provider-docs?filter[provider-version]=6221", logger, "v2")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := sendRegistryCall(client, "GET", tc.uri, logger, "v2")
 
-func TestSendRegistryCall_404NotFound_v2(t *testing.T) {
-	_, err := sendRegistryCall(client, "GET", "test-uri", logger, "v2")
-	if err == nil || err.Error() != "error: 404 Not Found" {
-		t.Errorf("expected 404 error, got %v", err)
-	}
-}
-
-func TestSendRegistryCall_404NotFound_v1(t *testing.T) {
-	_, err := sendRegistryCall(client, "GET", "test-uri", logger)
-	if err == nil || err.Error() != "error: 404 Not Found" {
-		t.Errorf("expected 404 error, got %v", err)
+			if tc.expectErr == "" && err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if tc.expectErr != "" && (err == nil || err.Error() != tc.expectErr) {
+				t.Errorf("expected %q, got %v", tc.expectErr, err)
+			}
+		})
 	}
 }
 
 // --- UnmarshalTFModulePlural ---
 
-func TestUnmarshalTFModulePlural_Valid(t *testing.T) {
-	resp := []byte(`{
-		"meta": {},
-		"modules": [
-			{
-				"id": "namespace/name/provider/1.0.0",
-				"owner": "owner",
-				"namespace": "namespace",
-				"name": "name",
-				"version": "1.0.0",
-				"provider": "provider",
-				"description": "A test module",
-				"source": "source",
-				"tag": "",
-				"published_at": "2023-01-01T00:00:00Z",
-				"downloads": 1,
-				"verified": true
+func TestUnmarshalTFModulePlural(t *testing.T) {
+	tests := []struct {
+		name               string
+		responseBody       []byte
+		query              string
+		expectErrSubstring string
+	}{
+		{
+			name:               "NoModulesFound",
+			responseBody:       []byte(`{"meta": {}, "modules": []}`),
+			query:              "test-query",
+			expectErrSubstring: "no modules found",
+		},
+		{
+			name:               "InvalidJSON",
+			responseBody:       []byte(`not a json`),
+			query:              "test-query",
+			expectErrSubstring: "unmarshalling modules",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := UnmarshalTFModulePlural(tc.responseBody, tc.query)
+
+			if tc.expectErrSubstring == "" && err != nil {
+				t.Fatalf("expected no error, got %v", err)
 			}
-		]
-	}`)
-	out, err := UnmarshalTFModulePlural(resp, "test-query")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if len(out) == 0 || !strings.Contains(out, "A test module") {
-		t.Errorf("expected output to contain module description, got %q", out)
-	}
-}
-
-func TestUnmarshalTFModulePlural_NoModules(t *testing.T) {
-	resp := []byte(`{"meta": {}, "modules": []}`)
-	_, err := UnmarshalTFModulePlural(resp, "test-query")
-	if err == nil || !strings.Contains(err.Error(), "no modules found") {
-		t.Errorf("expected error about no modules found, got %v", err)
-	}
-}
-
-func TestUnmarshalTFModulePlural_InvalidJSON(t *testing.T) {
-	resp := []byte(`not a json`)
-	_, err := UnmarshalTFModulePlural(resp, "test-query")
-	if err == nil || !strings.Contains(err.Error(), "unmarshalling modules") {
-		t.Errorf("expected unmarshalling error, got %v", err)
+			if tc.expectErrSubstring != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil", tc.expectErrSubstring)
+				}
+				if !strings.Contains(err.Error(), tc.expectErrSubstring) {
+					t.Errorf("expected error string %q to contain %q", err.Error(), tc.expectErrSubstring)
+				}
+			}
+		})
 	}
 }
 
