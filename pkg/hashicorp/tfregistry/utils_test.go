@@ -13,6 +13,8 @@ import (
 	"testing"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // --- sendRegistryCall ---
@@ -106,16 +108,10 @@ func TestSendRegistryCall(t *testing.T) {
 			_, err := sendRegistryCall(server.Client(), tc.httpMethod, tc.uri, logger, tc.apiVersion, server.URL)
 
 			if tc.expectErrContent == "" {
-				if err != nil {
-					t.Fatalf("TestSendRegistryCall (%s): expected no error, got %v", tc.name, err)
-				}
+				require.NoError(t, err, "TestSendRegistryCall (%s)", tc.name)
 			} else {
-				if err == nil {
-					t.Fatalf("TestSendRegistryCall (%s): expected error containing %q, got nil", tc.name, tc.expectErrContent)
-				}
-				if !strings.Contains(err.Error(), tc.expectErrContent) {
-					t.Errorf("TestSendRegistryCall (%s): expected error string %q to contain %q", tc.name, err.Error(), tc.expectErrContent)
-				}
+				require.Error(t, err, "TestSendRegistryCall (%s): expected an error but got nil", tc.name)
+				assert.Contains(t, err.Error(), tc.expectErrContent, "TestSendRegistryCall (%s): error message mismatch", tc.name)
 			}
 		})
 	}
