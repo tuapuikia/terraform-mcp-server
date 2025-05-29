@@ -109,6 +109,19 @@ Use the main branch:
 go install github.com/hashicorp/terraform-mcp-server/cmd/terraform-mcp-server@main
 ```
 
+```json
+{
+  "mcp": {
+    "servers": {
+      "terraform": {
+        "command": "/path/to/terraform-mcp-server",
+        "args": ["stdio"]
+      }
+    }
+  }
+}
+```
+
 ## Building the Docker Image locally
 
 Before using the server, you need to build the Docker image locally:
