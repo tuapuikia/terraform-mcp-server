@@ -1,12 +1,15 @@
-// +build !integration
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+//go:build !integration
 
 package tfregistry
 
 import (
-	"net/http"
-	"testing"
-	"strings"
 	"fmt"
+	"net/http"
+	"strings"
+	"testing"
 
 	log "github.com/sirupsen/logrus"
 )
