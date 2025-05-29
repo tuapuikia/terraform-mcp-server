@@ -82,54 +82,6 @@ More about using MCP server tools in Claude Desktop [user documentation](https:/
 }
 ```
 
-### Usage without Docker
-
-Use the latest release version:
-
-```console
-go install github.com/hashicorp/terraform-mcp-server/cmd/terraform-mcp-server@latest
-```
-
-Use the main branch:
-
-```console
-go install github.com/hashicorp/terraform-mcp-server/cmd/terraform-mcp-server@main
-```
-
-then
-
-#### Usage with VS Code
-
-```json
-{
-  "mcp": {
-    "servers": {
-      "terraform": {
-        "command": "/path/to/terraform-mcp-server",
-        "args": [
-          "stdio"
-        ]
-      }
-    }
-  }
-}
-```
-
-#### Usage with Claude Desktop
-
-```json
-{
-  "mcpServers": {
-    "terraform": {
-      "command": "/path/to/terraform-mcp-server",
-      "args": [
-        "stdio"
-      ]
-    }
-  }
-}
-```
-
 ## Tool Configuration
 
 ### Available Toolsets
@@ -143,32 +95,18 @@ The following sets of tools are available:
 | `modules`   | `searchModules`        | Searches the Terraform Registry for modules based on specified `moduleQuery` with pagination. Returns a list of module IDs with their names, descriptions, download counts, verification status, and publish dates                                             |
 | `modules`   | `moduleDetails`        | Retrieves detailed documentation for a module using a module ID obtained from the `searchModules` tool including inputs, outputs, configuration, submodules, and examples.                                                                                     |
 
-### Build from source
+### Install from source
 
-If you don't have Docker, you can use `make build` to build the binary directly from source code. You should configure your server to use the built executable as its `command`.
+Use the latest release version:
 
-1. Clone the repository:
-```bash
-git clone https://github.com/hashicorp/terraform-mcp-server.git
-cd terraform-mcp-server
+```console
+go install github.com/hashicorp/terraform-mcp-server/cmd/terraform-mcp-server@latest
 ```
 
-2. Build the binary:
-```bash
-make build
-```
+Use the main branch:
 
-```json
-{
-  "mcp": {
-    "servers": {
-      "terraform": {
-        "command": "/path/to/terraform-mcp-server",
-        "args": ["stdio"]
-      }
-    }
-  }
-}
+```console
+go install github.com/hashicorp/terraform-mcp-server/cmd/terraform-mcp-server@main
 ```
 
 ## Building the Docker Image locally
