@@ -54,70 +54,26 @@ func TestE2E(t *testing.T) {
 		require.Equal(t, "terraform-mcp-server", result.ServerInfo.Name)
 	})
 
-	for _, testCase := range providerDetailsTestCases {
-		t.Run("CallTool providerDetails", func(t *testing.T) {
+	for _, testCase := range providerTestCases {
+		t.Run("CallTool resolveProviderDocID", func(t *testing.T) {
 			// t.Parallel()
-			t.Logf("TOOL providerDetails %s", testCase.TestDescription)
+			t.Logf("TOOL resolveProviderDocID %s", testCase.TestDescription)
 			t.Logf("Test payload: %v", testCase.TestPayload)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
 			request := mcp.CallToolRequest{}
-			request.Params.Name = "providerDetails"
+			request.Params.Name = "resolveProviderDocID"
 			request.Params.Arguments = testCase.TestPayload
 
 			response, err := client.CallTool(ctx, request)
 			if testCase.TestShouldFail {
-				require.Error(t, err, "expected to call 'providerDetails' tool with error")
+				require.Error(t, err, "expected to call 'resolveProviderDocID' tool with error")
 				t.Logf("Error: %v", err)
 				// require.True(t, response.IsError, "expected result to be an error")
 			} else {
-				require.NoError(t, err, "expected to call 'providerDetails' tool successfully")
-				require.False(t, response.IsError, "expected result not to be an error")
-				require.Len(t, response.Content, 1, "expected content to have one item")
-
-				textContent, ok := response.Content[0].(mcp.TextContent)
-				require.True(t, ok, "expected content to be of type TextContent")
-				t.Logf("Content length: %d", len(textContent.Text))
-
-				// TODO: Implement a better way to test this
-				if testCase.TestContentType == CONST_TYPE_DATA_SOURCE {
-					require.NotContains(t, textContent.Text, "**Category:** resources", "expected content not to contain resources")
-				} else if testCase.TestContentType == CONST_TYPE_RESOURCE {
-					require.NotContains(t, textContent.Text, "**Category:** data-sources", "expected content not to contain data-sources")
-				} else if testCase.TestContentType == CONST_TYPE_BOTH {
-					require.Contains(t, textContent.Text, "**Category:** resources", "expected content to contain resources")
-					require.Contains(t, textContent.Text, "**Category:** data-sources", "expected content to contain data-sources")
-				} else if testCase.TestContentType == CONST_TYPE_GUIDES {
-					require.Contains(t, textContent.Text, "**Category:** guides", "expected content to contain guides")
-				} else if testCase.TestContentType == CONST_TYPE_FUNCTIONS {
-					require.Contains(t, textContent.Text, "**Category:** functions", "expected content to contain functions")
-				}
-			}
-		})
-	}
-
-	for _, testCase := range providerDetailsTestCases {
-		t.Run("CallTool providerResourceDetails", func(t *testing.T) {
-			// t.Parallel()
-			t.Logf("TOOL providerResourceDetails %s", testCase.TestDescription)
-			t.Logf("Test payload: %v", testCase.TestPayload)
-
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-
-			request := mcp.CallToolRequest{}
-			request.Params.Name = "providerResourceDetails"
-			request.Params.Arguments = testCase.TestPayload
-
-			response, err := client.CallTool(ctx, request)
-			if testCase.TestShouldFail {
-				require.Error(t, err, "expected to call 'providerResourceDetails' tool with error")
-				t.Logf("Error: %v", err)
-				// require.True(t, response.IsError, "expected result to be an error")
-			} else {
-				require.NoError(t, err, "expected to call 'providerResourceDetails' tool successfully")
+				require.NoError(t, err, "expected to call 'resolveProviderDocID' tool successfully")
 				require.False(t, response.IsError, "expected result not to be an error")
 				require.Len(t, response.Content, 1, "expected content to have one item")
 
@@ -126,17 +82,45 @@ func TestE2E(t *testing.T) {
 				t.Logf("Content length: %d", len(textContent.Text))
 
 				if testCase.TestContentType == CONST_TYPE_DATA_SOURCE {
-					require.NotContains(t, textContent.Text, "**Category:** resources", "expected content not to contain resources")
+					require.Contains(t, textContent.Text, "Category: data-sources", "expected content to contain data-sources")
 				} else if testCase.TestContentType == CONST_TYPE_RESOURCE {
-					require.NotContains(t, textContent.Text, "**Category:** data-sources", "expected content not to contain data-sources")
-				} else if testCase.TestContentType == CONST_TYPE_BOTH {
-					require.Contains(t, textContent.Text, "resource", "expected content to contain resources")
-					require.Contains(t, textContent.Text, "data source", "expected content to contain data-sources")
+					require.Contains(t, textContent.Text, "Category: resources", "expected content to contain resources")
 				} else if testCase.TestContentType == CONST_TYPE_GUIDES {
 					require.Contains(t, textContent.Text, "guide", "expected content to contain guide")
 				} else if testCase.TestContentType == CONST_TYPE_FUNCTIONS {
 					require.Contains(t, textContent.Text, "functions", "expected content to contain functions")
 				}
+			}
+		})
+	}
+
+	for _, testCase := range providerDocsTestCases {
+		t.Run("CallTool getProviderDocs", func(t *testing.T) {
+			// t.Parallel()
+			t.Logf("TOOL getProviderDocs %s", testCase.TestDescription)
+			t.Logf("Test payload: %v", testCase.TestPayload)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			request := mcp.CallToolRequest{}
+			request.Params.Name = "getProviderDocs"
+			request.Params.Arguments = testCase.TestPayload
+
+			response, err := client.CallTool(ctx, request)
+			if testCase.TestShouldFail {
+				require.Error(t, err, "expected to call 'getProviderDocs' tool with error")
+				t.Logf("Error: %v", err)
+			} else {
+				require.NoError(t, err, "expected to call 'getProviderDocs' tool successfully")
+				require.False(t, response.IsError, "expected result not to be an error")
+				require.Len(t, response.Content, 1, "expected content to have one item")
+
+				textContent, ok := response.Content[0].(mcp.TextContent)
+				require.True(t, ok, "expected content to be of type TextContent")
+				t.Logf("Content length: %d", len(textContent.Text))
+
+				require.Contains(t, textContent.Text, "page_title", "expected content to contain a page_title")
 			}
 		})
 	}
@@ -211,9 +195,6 @@ func TestE2E(t *testing.T) {
 					require.NotContains(t, textContent.Text, "**Category:** resources", "expected content not to contain resources")
 				} else if testCase.TestContentType == CONST_TYPE_RESOURCE {
 					require.NotContains(t, textContent.Text, "**Category:** data-sources", "expected content not to contain data-sources")
-				} else if testCase.TestContentType == CONST_TYPE_BOTH {
-					require.Contains(t, textContent.Text, "resource", "expected content to contain resources")
-					require.Contains(t, textContent.Text, "data source", "expected content to contain data-sources")
 				}
 			}
 		})

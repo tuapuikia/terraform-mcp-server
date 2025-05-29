@@ -7,34 +7,52 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"net/http"
+	"strings"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// ProviderDetails creates a tool to get provider details from registry.
-func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("providerDetails",
-			mcp.WithDescription(`This tool helps users deploy services on cloud, on-premise and SaaS application environments by retrieving a specific Terraform provider. 
-			It helps users understand everything that can be provisioned and managed using the Terraform provider by listing out its resources (write operations), data sources (read operations), and functions (utility operations). 
-			For each item, note the existence and path of its documentation.
-			`),
-			mcp.WithString("providerName", mcp.Required(), mcp.Description("The name of the Terraform provider to perform the read or deployment operation.")),
-			mcp.WithString("providerNamespace", mcp.Required(), mcp.Description("The publisher of the Terraform provider, typically the name of the company, or their GitHub organization name that created the provider.")),
-			mcp.WithString("providerVersion", mcp.Description("The version of the Terraform provider to retrieve in the format 'x.y.z', or 'latest' to get the latest version.")),
-			mcp.WithString("providerDataType", mcp.Description("The source type of the Terraform provider to retrieve."),
-				mcp.Enum("resources", "data-sources", "functions", "guides", "overview")),
+// ResolveProviderDocID creates a tool to get provider details from registry.
+func ResolveProviderDocID(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("resolveProviderDocID",
+			mcp.WithDescription(`This tool retrieves a list of potential documents based on the serviceSlug and providerDataType provided. You MUST call this function before 'getProviderDocs' to obtain a valid tfprovider-compatible providerDocID. 
+			Use the most relevant single word as the search query for serviceSlug, if unsure about the serviceSlug, use the providerName for its value.
+			When selecting the best match, consider: - Title similarity to the query - Category relevance Return the selected providerDocID and explain your choice.  
+			If there are multiple good matches, mention this but proceed with the most relevant one.`),
+			mcp.WithTitleAnnotation("Identify the most relevant provider document ID for a Terraform service"),
+			mcp.WithReadOnlyHintAnnotation(true),
+			mcp.WithString("providerName", mcp.Required(), mcp.Description("The name of the Terraform provider to perform the read or deployment operation")),
+			mcp.WithString("providerNamespace", mcp.Required(), mcp.Description("The publisher of the Terraform provider, typically the name of the company, or their GitHub organization name that created the provider")),
+			mcp.WithString("serviceSlug", mcp.Required(), mcp.Description("The slug of the service you want to deploy or read using the Terraform provider, prefer using a single word, use underscores for multiple words and if unsure about the serviceSlug, use the providerName for its value")),
+			mcp.WithString("providerDataType", mcp.Description("The type of the document to retrieve, for general information use 'guides', for deploying resources use 'resources', for reading pre-deployed resources use 'data-sources', for functions use 'functions', and for overview of the provider use 'overview'"),
+				mcp.Enum("resources", "data-sources", "functions", "guides", "overview"),
+				mcp.DefaultString("resources"),
+			),
+			mcp.WithString("providerVersion", mcp.Description("The version of the Terraform provider to retrieve in the format 'x.y.z', or 'latest' to get the latest version")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 
 			// For typical provider and namespace hallucinations
-			defaultErrorGuide := "please check the provider name or the namespace, perhaps the provider is published under a different namespace or company name"
+			defaultErrorGuide := "please check the provider name, provider namespace or the provider version you're looking for, perhaps the provider is published under a different namespace or company name"
 			providerDetail, err := resolveProviderDetails(request, registryClient, defaultErrorGuide, logger)
 			if err != nil {
 				return nil, err
 			}
+
+			serviceSlug, ok := request.Params.Arguments["serviceSlug"].(string)
+			if !ok || serviceSlug == "" {
+				return nil, logAndReturnError(logger, "serviceSlug is required and must be a string", nil)
+			}
+
+			providerDataType, ok := request.Params.Arguments["providerDataType"].(string)
+			if !ok || providerDataType == "" {
+				providerDataType = "resources"
+			}
+			providerDetail.ProviderDataType = providerDataType
 
 			// Check if we need to use v2 API for guides, functions, or overview
 			if isV2ProviderDataType(providerDetail.ProviderDataType) {
@@ -55,7 +73,8 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 			uri := fmt.Sprintf("providers/%s/%s/%s", providerDetail.ProviderNamespace, providerDetail.ProviderName, providerDetail.ProviderVersion)
 			response, err := sendRegistryCall(registryClient, "GET", uri, logger)
 			if err != nil {
-				return nil, logAndReturnError(logger, "getting provider details", err)
+				return nil, logAndReturnError(logger, fmt.Sprintf(`Error getting the "%s" provider, 
+					with version "%s" in the %s namespace, %s`, providerDetail.ProviderName, providerDetail.ProviderVersion, providerDetail.ProviderNamespace, defaultErrorGuide), nil)
 			}
 
 			var providerDocs ProviderDocs
@@ -63,76 +82,64 @@ func ProviderDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.
 				return nil, logAndReturnError(logger, "unmarshalling provider docs", err)
 			}
 
-			content := fmt.Sprintf("# %s provider docs\n\n", providerDetail.ProviderName)
+			var builder strings.Builder
+			builder.WriteString(fmt.Sprintf("Available Documentation (top matches) for %s in Terraform provider %s/%s version: %s\n\n", providerDetail.ProviderDataType, providerDetail.ProviderNamespace, providerDetail.ProviderName, providerDetail.ProviderVersion))
+			builder.WriteString("Each result includes:\n- providerDocID: tfprovider-compatible identifier\n- Title: Service or resource name\n- Category: Type of document\n")
+			builder.WriteString("For best results, select libraries based on the serviceSlug match and category of information requested.\n\n---\n\n")
+
 			contentAvailable := false
 			for _, doc := range providerDocs.Docs {
-				// restrictData determines whether the data should be restricted based on the provider data type.
-				// It evaluates to true if providerDataType is not empty and does not match the doc's category.
-				restrictData := providerDetail.ProviderDataType != "" && providerDetail.ProviderDataType != doc.Category
-				if !restrictData {
-					if doc.Language == "hcl" {
+				if doc.Language == "hcl" && doc.Category == providerDetail.ProviderDataType {
+					cs, err := containsSlug(doc.Slug, serviceSlug)
+					cs_pn, err_pn := containsSlug(fmt.Sprintf("%s_%s", providerDetail.ProviderName, doc.Slug), serviceSlug)
+					if (cs || cs_pn) && err == nil && err_pn == nil {
 						contentAvailable = true
-						content += fmt.Sprintf("## %s \n\n**Id:** %s \n\n**Category:** %s\n\n**Subcategory:** %s\n\n**Path:** %s\n\n",
-							doc.Title, doc.ID, doc.Category, doc.Subcategory, doc.Path)
+						builder.WriteString(fmt.Sprintf("- providerDocID: %s\n- Title: %s\n- Category: %s\n---\n", doc.ID, doc.Title, doc.Category))
 					}
 				}
 			}
 
 			// Check if the content data is not fulfilled
 			if !contentAvailable {
-				errMessage := fmt.Sprintf(`No documentation found for provider '%s' in the '%s' namespace, %s`, providerDetail.ProviderName, providerDetail.ProviderNamespace, defaultErrorGuide)
+				errMessage := fmt.Sprintf(`No documentation found for serviceSlug %s, provide a more relevant serviceSlug if unsure, use the providerName for its value`, serviceSlug)
 				return nil, logAndReturnError(logger, errMessage, err)
 			}
-			return mcp.NewToolResultText(content), nil
+			return mcp.NewToolResultText(builder.String()), nil
 		}
 }
 
-func providerResourceDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("providerResourceDetails",
-			mcp.WithDescription(`This tool is used to obtain the documentation, schema, and code examples from a given Terraform provider version, which will guide you in deploying a specific service on cloud, on-premise, and SaaS application environments. 
-			Please specify the provider name, namespace, and the service name you wish to provision to utilize this tool.`),
-			mcp.WithString("providerName", mcp.Required(), mcp.Description("The name of the Terraform provider to perform the read or deployment operation.")),
-			mcp.WithString("providerNamespace", mcp.Required(), mcp.Description("The publisher of the Terraform provider, typically the name of the company or their GitHub organization name that created the provider.")),
-			mcp.WithString("providerVersion", mcp.Description("The version of the Terraform provider to retrieve in the format 'x.y.z', or 'latest' to get the latest version.")),
-			mcp.WithString("providerDataType", mcp.Description("The source type of the Terraform provider to retrieve, can be 'resources' or 'data-sources'."),
-				mcp.Enum("resources", "data-sources", "functions", "guides")),
-			mcp.WithString("serviceName", mcp.Required(), mcp.Description("The name of the service or resource for read or deployment operations.")),
+// GetProviderDocs creates a tool to get provider docs for a specific service from registry.
+func GetProviderDocs(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("getProviderDocs",
+			mcp.WithDescription(`Fetches up-to-date documentation for a specific service from a Terraform provider. You must call 'resolveProviderDocID' first to obtain the exact tfprovider-compatible providerDocID required to use this tool.`),
+			mcp.WithTitleAnnotation("Fetch detailed Terraform provider documentation using a document ID"),
+			mcp.WithOpenWorldHintAnnotation(true),
+			mcp.WithString("providerDocID", mcp.Required(), mcp.Description("Exact tfprovider-compatible providerDocID, (e.g., '8894603', '8906901') retrieved from 'resolveProviderDocID'")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-
-			serviceName, ok := request.Params.Arguments["serviceName"].(string)
-			if !ok || serviceName == "" {
-				return nil, fmt.Errorf("serviceName is required and must be a string")
+			providerDocID, ok := request.Params.Arguments["providerDocID"].(string)
+			if !ok || providerDocID == "" {
+				return nil, fmt.Errorf("providerDocID is required and must be a string")
 			}
 
-			// For typical provider and namespace hallucinations
-			defaultErrorGuide := "please check the provider name or the namespace, perhaps the provider is published under a different namespace or company name"
-			providerDetail, err := resolveProviderDetails(request, registryClient, defaultErrorGuide, logger)
+			detailResp, err := sendRegistryCall(registryClient, "GET", fmt.Sprintf("provider-docs/%s", providerDocID), logger, "v2")
 			if err != nil {
-				return nil, err
+				return nil, logAndReturnError(logger, fmt.Sprintf("Error fetching provider-docs/%s, please make sure providerDocID is valid and the resolveProviderDocID tool has run prior", providerDocID), err)
 			}
 
-			var content string
-			if isV2ProviderDataType(providerDetail.ProviderDataType) {
-				content, err = GetProviderResourceDetailsV2(registryClient, providerDetail, serviceName, logger)
-			} else {
-				content, err = GetProviderResourceDetails(registryClient, providerDetail, serviceName, logger)
+			var details ProviderResourceDetails
+			if err := json.Unmarshal(detailResp, &details); err != nil {
+				return nil, logAndReturnError(logger, fmt.Sprintf("error unmarshalling provider-docs/%s", providerDocID), err)
 			}
-			if err != nil {
-				return nil, err
-			}
-
-			if content == "" {
-				content = fmt.Sprintf("Resource '%s' not found in the provider documentation", serviceName)
-			}
-
-			return mcp.NewToolResultText(content), nil
+			return mcp.NewToolResultText(details.Data.Attributes.Content), nil
 		}
 }
 
 func SearchModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("searchModules",
-			mcp.WithDescription(`This tool helps users deploy complex services on cloud and on-premise environments by searching for a list of Terraform modules. It resolves a module name to obtain a compatible moduleID for the moduleDetails tool and returns a list of matching libraries. You MUST call this function before 'moduleDetails' to obtain a valid and compatible moduleID. When selecting the best match, consider: - Name similarity to the query - Description relevance - Code Snippet count (documentation coverage) - Download counts (popularity) Return the selected moduleID and explain your choice. If there are multiple good matches, mention this but proceed with the most relevant one. If no modules were found, reattempt the search with a new moduleName query.`),
+			mcp.WithDescription(`Resolves a Terraform module name to obtain a compatible moduleID for the moduleDetails tool and returns a list of matching Terraform modules. You MUST call this function before 'moduleDetails' to obtain a valid and compatible moduleID. When selecting the best match, consider: - Name similarity to the query - Description relevance - Verification status (verified) - Download counts (popularity) Return the selected moduleID and explain your choice. If there are multiple good matches, mention this but proceed with the most relevant one. If no modules were found, reattempt the search with a new moduleName query.`),
+			mcp.WithTitleAnnotation("Search and match Terraform modules based on name and relevance"),
+			mcp.WithOpenWorldHintAnnotation(true),
 			mcp.WithString("moduleQuery",
 				mcp.Required(),
 				mcp.Description("The query to search for Terraform modules."),
@@ -176,13 +183,15 @@ func SearchModules(registryClient *http.Client, logger *log.Logger) (tool mcp.To
 func ModuleDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("moduleDetails",
 			mcp.WithDescription(`Fetches up-to-date documentation on how to use a Terraform module. You must call 'searchModules' first to obtain the exact valid and compatible moduleID required to use this tool.`),
+			mcp.WithTitleAnnotation("Retrieve documentation for a specific Terraform module"),
+			mcp.WithOpenWorldHintAnnotation(true),
 			mcp.WithString("moduleID",
 				mcp.Required(),
 				mcp.Description("Exact valid and compatible moduleID retrieved from searchModules (e.g., 'squareops/terraform-kubernetes-mongodb/mongodb/2.1.1', 'GoogleCloudPlatform/vertex-ai/google/0.2.0')"),
 			),
 		), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			moduleID := request.Params.Arguments["moduleID"]
-			
+
 			if mn, ok := moduleID.(string); !ok || mn == "" {
 				return nil, logAndReturnError(logger, "moduleID is required and must be a valid string. It represents the ID of the module to retrieve detailed information about", nil)
 			} else {
