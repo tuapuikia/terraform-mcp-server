@@ -14,10 +14,11 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/posthog/posthog-go"
 )
 
 // ResolveProviderDocID creates a tool to get provider details from registry.
-func ResolveProviderDocID(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func ResolveProviderDocID(registryClient *http.Client, phClient posthog.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("resolveProviderDocID",
 			mcp.WithDescription(`This tool retrieves a list of potential documents based on the serviceSlug and providerDataType provided. You MUST call this function before 'getProviderDocs' to obtain a valid tfprovider-compatible providerDocID. 
 			Use the most relevant single word as the search query for serviceSlug, if unsure about the serviceSlug, use the providerName for its value.
@@ -35,6 +36,11 @@ func ResolveProviderDocID(registryClient *http.Client, logger *log.Logger) (tool
 			mcp.WithString("providerVersion", mcp.Description("The version of the Terraform provider to retrieve in the format 'x.y.z', or 'latest' to get the latest version")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+
+			phClient.Enqueue(posthog.Capture{
+				DistinctId: "distinct_id_of_the_user",
+				Event:      "resolveProviderDocID",
+			})
 
 			// For typical provider and namespace hallucinations
 			defaultErrorGuide := "please check the provider name, provider namespace or the provider version you're looking for, perhaps the provider is published under a different namespace or company name"
@@ -109,7 +115,7 @@ func ResolveProviderDocID(registryClient *http.Client, logger *log.Logger) (tool
 }
 
 // GetProviderDocs creates a tool to get provider docs for a specific service from registry.
-func GetProviderDocs(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func GetProviderDocs(registryClient *http.Client, phClient posthog.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("getProviderDocs",
 			mcp.WithDescription(`Fetches up-to-date documentation for a specific service from a Terraform provider. You must call 'resolveProviderDocID' first to obtain the exact tfprovider-compatible providerDocID required to use this tool.`),
 			mcp.WithTitleAnnotation("Fetch detailed Terraform provider documentation using a document ID"),
@@ -117,6 +123,11 @@ func GetProviderDocs(registryClient *http.Client, logger *log.Logger) (tool mcp.
 			mcp.WithString("providerDocID", mcp.Required(), mcp.Description("Exact tfprovider-compatible providerDocID, (e.g., '8894603', '8906901') retrieved from 'resolveProviderDocID'")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			phClient.Enqueue(posthog.Capture{
+				DistinctId: "distinct_id_of_the_user",
+				Event:      "getProviderDocs",
+			})
+
 			providerDocID, ok := request.Params.Arguments["providerDocID"].(string)
 			if !ok || providerDocID == "" {
 				return nil, fmt.Errorf("providerDocID is required and must be a string")
@@ -135,7 +146,7 @@ func GetProviderDocs(registryClient *http.Client, logger *log.Logger) (tool mcp.
 		}
 }
 
-func SearchModules(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func SearchModules(registryClient *http.Client, phClient posthog.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("searchModules",
 			mcp.WithDescription(`Resolves a Terraform module name to obtain a compatible moduleID for the moduleDetails tool and returns a list of matching Terraform modules. You MUST call this function before 'moduleDetails' to obtain a valid and compatible moduleID. When selecting the best match, consider: - Name similarity to the query - Description relevance - Verification status (verified) - Download counts (popularity) Return the selected moduleID and explain your choice. If there are multiple good matches, mention this but proceed with the most relevant one. If no modules were found, reattempt the search with a new moduleName query.`),
 			mcp.WithTitleAnnotation("Search and match Terraform modules based on name and relevance"),
@@ -150,6 +161,11 @@ func SearchModules(registryClient *http.Client, logger *log.Logger) (tool mcp.To
 				mcp.DefaultNumber(0),
 			),
 		), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			phClient.Enqueue(posthog.Capture{
+				DistinctId: "distinct_id_of_the_user",
+				Event:      "searchModules",
+			})
+
 			moduleQuery := request.Params.Arguments["moduleQuery"]
 			currentOffset := request.Params.Arguments["currentOffset"]
 			currentOffsetValue := 0
@@ -180,7 +196,7 @@ func SearchModules(registryClient *http.Client, logger *log.Logger) (tool mcp.To
 		}
 }
 
-func ModuleDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func ModuleDetails(registryClient *http.Client, phClient posthog.Client, logger *log.Logger) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("moduleDetails",
 			mcp.WithDescription(`Fetches up-to-date documentation on how to use a Terraform module. You must call 'searchModules' first to obtain the exact valid and compatible moduleID required to use this tool.`),
 			mcp.WithTitleAnnotation("Retrieve documentation for a specific Terraform module"),
@@ -190,6 +206,11 @@ func ModuleDetails(registryClient *http.Client, logger *log.Logger) (tool mcp.To
 				mcp.Description("Exact valid and compatible moduleID retrieved from searchModules (e.g., 'squareops/terraform-kubernetes-mongodb/mongodb/2.1.1', 'GoogleCloudPlatform/vertex-ai/google/0.2.0')"),
 			),
 		), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			phClient.Enqueue(posthog.Capture{
+				DistinctId: "distinct_id_of_the_user",
+				Event:      "moduleDetails",
+			})
+
 			moduleID := request.Params.Arguments["moduleID"]
 
 			if mn, ok := moduleID.(string); !ok || mn == "" {

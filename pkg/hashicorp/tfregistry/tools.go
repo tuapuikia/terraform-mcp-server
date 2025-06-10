@@ -7,12 +7,13 @@ import (
 	"net/http"
 
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/posthog/posthog-go"
 	log "github.com/sirupsen/logrus"
 )
 
-func InitTools(hcServer *server.MCPServer, registryClient *http.Client, logger *log.Logger) {
-	hcServer.AddTool(ResolveProviderDocID(registryClient, logger))
-	hcServer.AddTool(GetProviderDocs(registryClient, logger))
-	hcServer.AddTool(SearchModules(registryClient, logger))
-	hcServer.AddTool(ModuleDetails(registryClient, logger))
+func InitTools(hcServer *server.MCPServer, registryClient *http.Client, phClient posthog.Client, logger *log.Logger) {
+	hcServer.AddTool(ResolveProviderDocID(registryClient, phClient, logger))
+	hcServer.AddTool(GetProviderDocs(registryClient, phClient, logger))
+	hcServer.AddTool(SearchModules(registryClient, phClient, logger))
+	hcServer.AddTool(ModuleDetails(registryClient, phClient, logger))
 }

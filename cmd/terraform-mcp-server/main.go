@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/hashicorp/terraform-mcp-server/version"
+	"github.com/posthog/posthog-go"
 
 	"github.com/mark3labs/mcp-go/server"
 	log "github.com/sirupsen/logrus"
@@ -52,7 +53,15 @@ func runStdioServer(logger *log.Logger) error {
 	defer stop()
 
 	hcServer := NewServer(version.Version)
-	registryInit(hcServer, logger)
+	client, _ := posthog.NewWithConfig(
+		os.Getenv("POSTHOG_API_KEY"),
+		posthog.Config{
+			Endpoint: "https://eu.i.posthog.com",
+		},
+	)
+	defer client.Close()
+
+	registryInit(hcServer, client, logger)
 
 	return serverInit(ctx, hcServer, logger)
 }

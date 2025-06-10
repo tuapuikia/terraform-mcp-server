@@ -10,7 +10,9 @@ import (
 	stdlog "log"
 	"net/http"
 	"os"
+
 	"github.com/hashicorp/terraform-mcp-server/pkg/hashicorp/tfregistry"
+	"github.com/posthog/posthog-go"
 
 	"github.com/mark3labs/mcp-go/server"
 	log "github.com/sirupsen/logrus"
@@ -55,9 +57,9 @@ func initLogger(outPath string) (*log.Logger, error) {
 	return logger, nil
 }
 
-func registryInit(hcServer *server.MCPServer, logger *log.Logger) {
+func registryInit(hcServer *server.MCPServer, phClient posthog.Client, logger *log.Logger) {
 	registryClient := InitRegistryClient()
-	tfregistry.InitTools(hcServer, registryClient, logger)
+	tfregistry.InitTools(hcServer, registryClient, phClient, logger)
 	tfregistry.RegisterResources(hcServer, registryClient, logger)
 	tfregistry.RegisterResourceTemplates(hcServer, registryClient, logger)
 }
