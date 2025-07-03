@@ -32,14 +32,15 @@ Modern HTTP-based transport supporting both direct HTTP requests and Server-Sent
 **Features:**
 - **Endpoint**: `http://{hostname}:8080/mcp`
 - **Health Check**: `http://{hostname}:8080/health`
-- **Environment Configuration**: Set `MODE=http` or `PORT=8080` to enable
+- **Environment Configuration**: Set `TRANSPORT_MODE=http` or `TRANSPORT_PORT=8080` to enable
 
 **Environment Variables:**
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `MODE` | Set to `http` to enable HTTP transport | `stdio` |
-| `PORT` | HTTP server port | `8080` |
+| `TRANSPORT_MODE` | Set to `http` to enable HTTP transport | `stdio` |
+| `TRANSPORT_HOST` | Host to bind the HTTP server | `0.0.0.0` |
+| `TRANSPORT_PORT` | HTTP server port | `8080` |
 
 ## Command Line Options
 
@@ -48,7 +49,7 @@ Modern HTTP-based transport supporting both direct HTTP requests and Server-Sent
 terraform-mcp-server stdio [--log-file /path/to/log]
 
 # HTTP mode
-terraform-mcp-server http [--port 8080] [--host 0.0.0.0] [--log-file /path/to/log]
+terraform-mcp-server http [--transport-port 8080] [--transport-host 0.0.0.0] [--log-file /path/to/log]
 ```
 
 ## Installation
