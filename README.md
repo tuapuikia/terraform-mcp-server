@@ -30,8 +30,8 @@ Standard input/output communication using JSON-RPC messages. Ideal for local dev
 Modern HTTP-based transport supporting both direct HTTP requests and Server-Sent Events (SSE) streams. This is the recommended transport for remote/distributed setups.
 
 **Features:**
-- **Endpoint**: `http://{hostname}:8080/mcp`
-- **Health Check**: `http://{hostname}:8080/health`
+- **Endpoint**: `http://127.0.0.1:8080/mcp`
+- **Health Check**: `http://127.0.0.1:8080/health`
 - **Environment Configuration**: Set `TRANSPORT_MODE=http` or `TRANSPORT_PORT=8080` to enable
 
 **Environment Variables:**
@@ -39,7 +39,6 @@ Modern HTTP-based transport supporting both direct HTTP requests and Server-Sent
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `TRANSPORT_MODE` | Set to `http` to enable HTTP transport | `stdio` |
-| `TRANSPORT_HOST` | Host to bind the HTTP server | `0.0.0.0` |
 | `TRANSPORT_PORT` | HTTP server port | `8080` |
 
 ## Command Line Options
@@ -49,7 +48,7 @@ Modern HTTP-based transport supporting both direct HTTP requests and Server-Sent
 terraform-mcp-server stdio [--log-file /path/to/log]
 
 # HTTP mode
-terraform-mcp-server http [--transport-port 8080] [--transport-host 0.0.0.0] [--log-file /path/to/log]
+terraform-mcp-server http [--transport-port 8080] [--log-file /path/to/log]
 ```
 
 ## Installation
