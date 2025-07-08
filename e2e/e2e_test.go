@@ -323,16 +323,19 @@ func createStdioClient(t *testing.T) (mcpClient.MCPClient, func()) {
 func createHTTPClient(t *testing.T) (mcpClient.MCPClient, func()) {
 	t.Log("Starting HTTP MCP server...")
 
+	// Build the binary to ensure it's up-to-date
+	buildBinary(t)
+
 	port := getTestPort()
 	baseURL := fmt.Sprintf("http://localhost:%s", port)
 	mcpURL := fmt.Sprintf("http://localhost:%s/mcp", port)
 
-	// Start container in HTTP mode
-	containerID := startHTTPContainer(t, port)
+	// Start HTTP server process directly
+	serverProcess := startHTTPProcess(t, port)
 
-	// Ensure container cleanup even if test fails
+	// Ensure process cleanup even if test fails
 	t.Cleanup(func() {
-		stopContainer(t, containerID)
+		stopProcess(t, serverProcess)
 	})
 
 	// Wait for server to be ready
@@ -346,22 +349,86 @@ func createHTTPClient(t *testing.T) (mcpClient.MCPClient, func()) {
 		if client != nil {
 			client.Close()
 		}
-		// Container cleanup handled by t.Cleanup()
 	}
 
 	return client, cleanup
 }
 
-// startHTTPContainer starts a Docker container in HTTP mode and returns container ID
-func startHTTPContainer(t *testing.T, port string) string {
-	portMapping := fmt.Sprintf("%s:8080", port)
-	cmd := exec.Command("docker", "run", "-d", "--rm", "-e", "TRANSPORT_MODE=http", "-p", portMapping, "terraform-mcp-server:test-e2e")
-	output, err := cmd.Output()
-	require.NoError(t, err, "expected to start HTTP container successfully")
+// buildBinary builds the terraform-mcp-server binary to ensure it's up-to-date
+func buildBinary(t *testing.T) {
+	t.Log("Building terraform-mcp-server binary...")
 
-	containerID := string(output)[:12] // First 12 chars of container ID
-	t.Logf("Started HTTP container: %s on port %s", containerID, port)
-	return containerID
+	// Change to the parent directory to run make build
+	cmd := exec.Command("make", "build")
+	cmd.Dir = ".." // Run from the parent directory
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("Failed to build binary: %v\nOutput: %s", err, string(output))
+	}
+
+	t.Log("Binary built successfully")
+}
+
+// startHTTPProcess starts the HTTP server as a direct process
+func startHTTPProcess(t *testing.T, port string) *exec.Cmd {
+	// Use the binary in the parent directory (relative to e2e directory)
+	binaryPath := "../terraform-mcp-server"
+
+	cmd := exec.Command(binaryPath, "http", "--transport-port", port)
+	cmd.Env = append(os.Environ(), "TRANSPORT_MODE=http")
+
+	// Start the process
+	err := cmd.Start()
+	require.NoError(t, err, "expected to start HTTP server process successfully")
+
+	t.Logf("Started HTTP server process with PID: %d on port %s", cmd.Process.Pid, port)
+	return cmd
+}
+
+// stopProcess stops the HTTP server process
+func stopProcess(t *testing.T, cmd *exec.Cmd) {
+	if cmd == nil || cmd.Process == nil {
+		return
+	}
+
+	t.Logf("Stopping HTTP server process with PID: %d", cmd.Process.Pid)
+
+	// Try graceful shutdown first
+	if err := cmd.Process.Signal(os.Interrupt); err != nil {
+		t.Logf("Failed to send interrupt signal: %v", err)
+	}
+
+	// Wait for process to exit with timeout
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	select {
+	case <-time.After(5 * time.Second):
+		// Force kill if graceful shutdown takes too long
+		if err := cmd.Process.Kill(); err != nil {
+			t.Logf("Failed to kill process: %v", err)
+		}
+		<-done // Wait for Wait() to return
+	case err := <-done:
+		if err != nil && !isExpectedExitError(err) {
+			t.Logf("Process exited with error: %v", err)
+		}
+	}
+}
+
+// isExpectedExitError checks if the error is expected during shutdown
+func isExpectedExitError(err error) bool {
+	if err == nil {
+		return true
+	}
+	// On Unix systems, interrupt signal causes exit code -2
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		return exitErr.ExitCode() == -2 || exitErr.ExitCode() == 130 // SIGINT exit codes
+	}
+	return false
 }
 
 // waitForServer waits for the HTTP server to be ready
@@ -380,26 +447,6 @@ func waitForServer(t *testing.T, baseURL string) {
 		time.Sleep(1 * time.Second)
 	}
 	t.Fatal("HTTP server failed to start within 30 seconds")
-}
-
-// stopContainer stops the Docker container
-func stopContainer(t *testing.T, containerID string) {
-	if containerID == "" {
-		return
-	}
-
-	t.Logf("Stopping container: %s", containerID)
-	cmd := exec.Command("docker", "stop", containerID)
-	if err := cmd.Run(); err != nil {
-		t.Logf("Warning: failed to stop container %s: %v", containerID, err)
-		// Try force kill if stop fails
-		killCmd := exec.Command("docker", "kill", containerID)
-		if killErr := killCmd.Run(); killErr != nil {
-			t.Logf("Warning: failed to kill container %s: %v", containerID, killErr)
-		}
-	} else {
-		t.Logf("Successfully stopped container: %s", containerID)
-	}
 }
 
 // cleanupAllTestContainers stops all containers created by this test
