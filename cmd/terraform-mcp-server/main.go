@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -49,8 +50,8 @@ var (
 		},
 	}
 
-	httpCmd = &cobra.Command{
-		Use:   "http",
+	streamableHTTPCmd = &cobra.Command{
+		Use:   "streamable-http",
 		Short: "Start StreamableHTTP server",
 		Long:  `Start a server that communicates via StreamableHTTP transport on port 8080 at /mcp endpoint.`,
 		Run: func(cmd *cobra.Command, _ []string) {
@@ -77,6 +78,18 @@ var (
 			}
 		},
 	}
+	
+	// Create an alias for backward compatibility
+	httpCmdAlias = &cobra.Command{
+		Use:        "http",
+		Short:      "Start StreamableHTTP server (deprecated, use 'streamable-http' instead)",
+		Long:       `This command is deprecated. Please use 'streamable-http' instead.`,
+		Deprecated: "Use 'streamable-http' instead",
+		Run: func(cmd *cobra.Command, args []string) {
+			// Forward to the new command
+			streamableHTTPCmd.Run(cmd, args)
+		},
+	}
 )
 
 func runHTTPServer(logger *log.Logger, host string, port string) error {
@@ -86,20 +99,52 @@ func runHTTPServer(logger *log.Logger, host string, port string) error {
 	hcServer := NewServer(version.Version)
 	registryInit(hcServer, logger)
 
-	return httpServerInit(ctx, hcServer, logger, host, port)
+	return streamableHTTPServerInit(ctx, hcServer, logger, host, port)
 }
 
-func httpServerInit(ctx context.Context, hcServer *server.MCPServer, logger *log.Logger, host string, port string) error {
+func streamableHTTPServerInit(ctx context.Context, hcServer *server.MCPServer, logger *log.Logger, host string, port string) error {
+	// Check if stateless mode is enabled
+	isStateless := shouldUseStatelessMode()
+	
 	// Create StreamableHTTP server which implements the new streamable-http transport
 	// This is the modern MCP transport that supports both direct HTTP responses and SSE streams
-	streamableServer := server.NewStreamableHTTPServer(hcServer,
+	opts := []server.StreamableHTTPOption{
 		server.WithEndpointPath("/mcp"), // Default MCP endpoint path
 		server.WithLogger(logger),
-	)
+	}
+
+	// Only add the WithStateLess option if stateless mode is enabled
+	// TODO: fix this in mcp-go ver 0.33.0 or higher
+	if isStateless {
+		opts = append(opts, server.WithStateLess(true))
+		logger.Infof("Running in stateless mode")
+	} else {
+		logger.Infof("Running in stateful mode (default)")
+	}
+
+	baseStreamableServer := server.NewStreamableHTTPServer(hcServer, opts...)
+
+	// Load CORS configuration
+	corsConfig := LoadCORSConfigFromEnv()
+	
+	// Log CORS configuration
+	logger.Infof("CORS Mode: %s", corsConfig.Mode)
+	if len(corsConfig.AllowedOrigins) > 0 {
+		logger.Infof("Allowed Origins: %s", strings.Join(corsConfig.AllowedOrigins, ", "))
+	} else if corsConfig.Mode == "strict" {
+		logger.Warnf("No allowed origins configured in strict mode. All cross-origin requests will be rejected.")
+	} else if corsConfig.Mode == "development" {
+		logger.Infof("Development mode: localhost origins are automatically allowed")
+	} else if corsConfig.Mode == "disabled" {
+		logger.Warnf("CORS validation is disabled. This is not recommended for production.")
+	}
+	
+	// Create a security wrapper around the streamable server
+	streamableServer := NewSecurityHandler(baseStreamableServer, corsConfig.AllowedOrigins, corsConfig.Mode, logger)
 
 	mux := http.NewServeMux()
 
-	// Handle the /mcp endpoint with the StreamableHTTP server
+	// Handle the /mcp endpoint with the streamable server (with security wrapper)
 	mux.Handle("/mcp", streamableServer)
 	mux.Handle("/mcp/", streamableServer)
 
@@ -189,9 +234,9 @@ func runDefaultCommand(cmd *cobra.Command, _ []string) {
 
 func main() {
 	// Check environment variables first - they override command line args
-	if shouldUseHTTPMode() {
+	if shouldUseStreamableHTTPMode() {
 		port := getHTTPPort()
-		host := "0.0.0.0"
+		host := getHTTPHost()
 
 		logFile, _ := rootCmd.PersistentFlags().GetString("log-file")
 		logger, err := initLogger(logFile)
@@ -200,7 +245,7 @@ func main() {
 		}
 
 		if err := runHTTPServer(logger, host, port); err != nil {
-			stdlog.Fatal("failed to run HTTP server:", err)
+			stdlog.Fatal("failed to run StreamableHTTP server:", err)
 		}
 		return
 	}
@@ -212,9 +257,25 @@ func main() {
 	}
 }
 
-// shouldUseHTTPMode checks if environment variables indicate HTTP mode
-func shouldUseHTTPMode() bool {
-	return os.Getenv("TRANSPORT_MODE") == "http" || os.Getenv("TRANSPORT_PORT") != ""
+// shouldUseStreamableHTTPMode checks if environment variables indicate HTTP mode
+func shouldUseStreamableHTTPMode() bool {
+	transportMode := os.Getenv("TRANSPORT_MODE")
+	return transportMode == "http" || transportMode == "streamable-http" || 
+	       os.Getenv("TRANSPORT_PORT") != "" || 
+	       os.Getenv("TRANSPORT_HOST") != ""
+}
+
+// shouldUseStatelessMode returns true if the MCP_SESSION_MODE environment variable is set to "stateless"
+func shouldUseStatelessMode() bool {
+	mode := strings.ToLower(os.Getenv("MCP_SESSION_MODE"))
+	
+	// Explicitly check for "stateless" value
+	if mode == "stateless" {
+		return true
+	}
+	
+	// All other values (including empty string, "stateful", or any other value) default to stateful mode
+	return false
 }
 
 // getHTTPPort returns the port from environment variables or default
@@ -223,4 +284,12 @@ func getHTTPPort() string {
 		return port
 	}
 	return "8080"
+}
+
+// getHTTPHost returns the host from environment variables or default
+func getHTTPHost() string {
+	if host := os.Getenv("TRANSPORT_HOST"); host != "" {
+		return host
+	}
+	return "127.0.0.1"
 }

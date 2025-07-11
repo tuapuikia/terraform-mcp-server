@@ -14,6 +14,8 @@ automation and interaction capabilities for Infrastructure as Code (IaC) develop
 
 > **Caution:** The outputs and recommendations provided by the MCP server are generated dynamically and may vary based on the query, model, and the connected MCP server. Users should **thoroughly review all outputs/recommendations** to ensure they align with their organization's **security best practices**, **cost-efficiency goals**, and **compliance requirements** before implementation.
 
+> **Security Note:** When using the StreamableHTTP transport in production, always configure the `MCP_ALLOWED_ORIGINS` environment variable to restrict access to trusted origins only. This helps prevent DNS rebinding attacks and other cross-origin vulnerabilities.
+
 ## Prerequisites
 
 1. To run the server in a container, you will need to have [Docker](https://www.docker.com/) installed.
@@ -38,9 +40,12 @@ Modern HTTP-based transport supporting both direct HTTP requests and Server-Sent
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `TRANSPORT_MODE` | Set to `http` to enable HTTP transport | `stdio` |
-| `TRANSPORT_HOST` | Host to bind the HTTP server | `0.0.0.0` |
+| `TRANSPORT_MODE` | Set to `streamable-http` to enable HTTP transport (legacy `http` value still supported) | `stdio` |
+| `TRANSPORT_HOST` | Host to bind the HTTP server | `127.0.0.1` |
 | `TRANSPORT_PORT` | HTTP server port | `8080` |
+| `MCP_SESSION_MODE` | Session mode: `stateful` or `stateless` | `stateful` |
+| `MCP_ALLOWED_ORIGINS` | Comma-separated list of allowed origins for CORS | `""` (empty) |
+| `MCP_CORS_MODE` | CORS mode: `strict`, `development`, or `disabled` | `strict` |
 
 ## Command Line Options
 
@@ -48,8 +53,20 @@ Modern HTTP-based transport supporting both direct HTTP requests and Server-Sent
 # Stdio mode
 terraform-mcp-server stdio [--log-file /path/to/log]
 
-# HTTP mode
-terraform-mcp-server http [--transport-port 8080] [--transport-host 0.0.0.0] [--log-file /path/to/log]
+# StreamableHTTP mode
+terraform-mcp-server streamable-http [--transport-port 8080] [--transport-host 127.0.0.1] [--log-file /path/to/log]
+```
+
+## Session Modes
+
+The Terraform MCP Server supports two session modes when using the StreamableHTTP transport:
+
+- **Stateful Mode (Default)**: Maintains session state between requests, enabling context-aware operations.
+- **Stateless Mode**: Each request is processed independently without maintaining session state, which can be useful for high-availability deployments or when using load balancers.
+
+To enable stateless mode, set the environment variable:
+```bash
+export MCP_SESSION_MODE=stateless
 ```
 
 ## Installation
@@ -179,9 +196,11 @@ make docker-build
 # Run in stdio mode
 docker run -i --rm terraform-mcp-server:dev
 
-# Run in http mode
-docker run -p 8080:8080 --rm -e MODE=http terraform-mcp-server:dev
+# Run in streamable-http mode
+docker run -p 8080:8080 --rm -e TRANSPORT_MODE=streamable-http -e TRANSPORT_HOST=0.0.0.0 terraform-mcp-server:dev
 ```
+
+> **Note:** When running in Docker, you should set `TRANSPORT_HOST=0.0.0.0` to allow connections from outside the container.
 
 4. (Optional) Test connection in http mode
   
