@@ -56,8 +56,9 @@ func (sm *sessionManager) startKeepAlive(sessionId string, w http.ResponseWriter
 				if flusher, ok := w.(http.Flusher); ok {
 					if r.Method == http.MethodGet {
 						// SSE keep-alive
-						_, err := w.Write([]byte(": keepalive\n\n"))
-						if err != nil {
+				sm.logger.Infof("[Keep-Alive] Sending SSE ping for session: %s", sessionId)
+				_, err := w.Write([]byte(": keepalive\n\n"))
+				if err != nil {
 							sm.logger.WithError(err).Warnf("[Keep-Alive] Failed to write SSE keep-alive for session %s, stopping.", sessionId)
 							return
 						}
@@ -67,9 +68,10 @@ func (sm *sessionManager) startKeepAlive(sessionId string, w http.ResponseWriter
 						// This assumes the underlying StreamableHTTPServer can handle raw writes
 						// or that a JSON-RPC ping is acceptable.
 						// A more robust solution would involve the mcp-go/server library exposing a ping method.
-						pingMessage := []byte(`{"jsonrpc":"2.0","method":"ping"}` + "\n")
-						_, err := w.Write(pingMessage)
-						if err != nil {
+                        pingMessage := []byte(`{"jsonrpc":"2.0","method":"ping"}` + "\n")
+                        sm.logger.Infof("[Keep-Alive] Sending JSON-RPC ping for session: %s", sessionId)
+                        _, err := w.Write(pingMessage)
+                        if err != nil {
 							sm.logger.WithError(err).Warnf("[Keep-Alive] Failed to write JSON-RPC ping for session %s, stopping.", sessionId)
 							return
 						}
