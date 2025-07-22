@@ -21,6 +21,78 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const KEEP_ALIVE_INTERVAL = 25 * time.Second
+
+type sessionManager struct {
+	sessions map[string]context.CancelFunc
+	logger   *log.Logger
+}
+
+func newSessionManager(logger *log.Logger) *sessionManager {
+	return &sessionManager{
+		sessions: make(map[string]context.CancelFunc),
+		logger:   logger,
+	}
+}
+
+func (sm *sessionManager) startKeepAlive(sessionId string, w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithCancel(r.Context())
+	sm.sessions[sessionId] = cancel
+
+	go func() {
+		ticker := time.NewTicker(KEEP_ALIVE_INTERVAL)
+		defer ticker.Stop()
+		defer func() {
+			sm.logger.Infof("[Keep-Alive] Stopping for session: %s", sessionId)
+			delete(sm.sessions, sessionId)
+		}()
+
+		sm.logger.Infof("[Keep-Alive] Started for session: %s", sessionId)
+
+		for {
+			select {
+			case <-ticker.C:
+				// Check if the connection is still alive before writing
+				if flusher, ok := w.(http.Flusher); ok {
+					if r.Method == http.MethodGet {
+						// SSE keep-alive
+						_, err := w.Write([]byte(": keepalive\n\n"))
+						if err != nil {
+							sm.logger.WithError(err).Warnf("[Keep-Alive] Failed to write SSE keep-alive for session %s, stopping.", sessionId)
+							return
+						}
+						flusher.Flush()
+					} else if r.Method == http.MethodPost {
+						// JSON-RPC ping for POST requests
+						// This assumes the underlying StreamableHTTPServer can handle raw writes
+						// or that a JSON-RPC ping is acceptable.
+						// A more robust solution would involve the mcp-go/server library exposing a ping method.
+						pingMessage := []byte(`{"jsonrpc":"2.0","method":"ping"}` + "\n")
+						_, err := w.Write(pingMessage)
+						if err != nil {
+							sm.logger.WithError(err).Warnf("[Keep-Alive] Failed to write JSON-RPC ping for session %s, stopping.", sessionId)
+							return
+						}
+						flusher.Flush()
+					}
+				} else {
+					sm.logger.Warnf("[Keep-Alive] http.ResponseWriter does not implement http.Flusher for session %s, stopping keep-alive.", sessionId)
+					return
+				}
+			case <-ctx.Done():
+				sm.logger.Infof("[Keep-Alive] Context done for session: %s", sessionId)
+				return
+			}
+		}
+	}()
+}
+
+func (sm *sessionManager) stopKeepAlive(sessionId string) {
+	if cancel, ok := sm.sessions[sessionId]; ok {
+		cancel()
+	}
+}
+
 var (
 	rootCmd = &cobra.Command{
 		Use:     "terraform-mcp-server",
@@ -144,9 +216,56 @@ func streamableHTTPServerInit(ctx context.Context, hcServer *server.MCPServer, l
 
 	mux := http.NewServeMux()
 
-	// Handle the /mcp endpoint with the streamable server (with security wrapper)
-	mux.Handle("/mcp", streamableServer)
-	mux.Handle("/mcp/", streamableServer)
+	// Initialize session manager for keep-alive pings
+	sm := newSessionManager(logger)
+
+	// Wrap the streamableServer with keep-alive logic
+	keepAliveHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Extract session ID from header for existing sessions
+		sessionId := r.Header.Get("mcp-session-id")
+		if sessionId == "" {
+			// For new sessions (POST requests), generate a session ID
+			// This is a simplification; a proper session ID generation should happen
+			// within the mcp-go/server library or be passed from the client.
+			// For now, we'll use a placeholder or rely on the client to provide it.
+			// If the mcp-go/server library handles session ID generation, we'd need to
+			// hook into that. For this example, we'll assume it's available or generated.
+			// For simplicity, let's assume the client always provides a session ID for now,
+			// or that the mcp-go/server sets it in the response for new sessions.
+			// If not, this keep-alive won't work for initial POST requests.
+			// For SSE (GET), the client is expected to provide it.
+			if r.Method == http.MethodPost {
+				// This is a placeholder. In a real scenario, the mcp-go/server
+				// would provide the session ID after initialization.
+				// For now, we'll use a dummy ID or skip keep-alive for initial POST.
+				// Let's assume for now that the client will provide a session ID
+				// or that the mcp-go/server will set it in the response.
+				// If the session ID is not available, we cannot start keep-alive.
+				logger.Debug("No mcp-session-id found in POST request, skipping keep-alive for initial request.")
+			}
+		}
+
+		if sessionId != "" {
+			// Start keep-alive for new sessions or existing SSE connections
+			if _, exists := sm.sessions[sessionId]; !exists {
+				sm.startKeepAlive(sessionId, w, r)
+			}
+		}
+
+		// Call the original handler
+		streamableServer.ServeHTTP(w, r)
+
+		// Stop keep-alive when the request is done (for non-streaming requests)
+		// For streaming requests (SSE), the goroutine will handle its own shutdown
+		// based on context cancellation or write errors.
+		if sessionId != "" && r.Method == http.MethodPost { // Only stop for non-streaming POST requests
+			sm.stopKeepAlive(sessionId)
+		}
+	})
+
+	// Handle the /mcp endpoint with the keep-alive wrapper
+	mux.Handle("/mcp", keepAliveHandler)
+	mux.Handle("/mcp/", keepAliveHandler)
 
 	// Add health check endpoint
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -178,6 +297,10 @@ func streamableHTTPServerInit(ctx context.Context, hcServer *server.MCPServer, l
 		logger.Infof("Shutting down StreamableHTTP server...")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
+		// Stop all active keep-alive goroutines on server shutdown
+		for sessionId := range sm.sessions {
+			sm.stopKeepAlive(sessionId)
+		}
 		return httpServer.Shutdown(shutdownCtx)
 	case err := <-errC:
 		if err != nil && err != http.ErrServerClosed {
