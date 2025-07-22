@@ -293,10 +293,10 @@ func streamableHTTPServerInit(ctx context.Context, hcServer *server.MCPServer, l
 	httpServer := &http.Server{
 		Addr:              addr,
 		Handler:           mux,
-		ReadTimeout:       30 * time.Second,
-		ReadHeaderTimeout: 30 * time.Second,
-		WriteTimeout:      30 * time.Second,
-		IdleTimeout:       60 * time.Second,
+		ReadTimeout:       6 * time.Hour,
+		ReadHeaderTimeout: 6 * time.Hour,
+		WriteTimeout:      6 * time.Hour,
+		IdleTimeout:       6 * time.Hour,
 	}
 
 	// Start server in goroutine
