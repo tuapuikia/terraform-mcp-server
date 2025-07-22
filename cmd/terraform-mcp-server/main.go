@@ -219,8 +219,23 @@ func streamableHTTPServerInit(ctx context.Context, hcServer *server.MCPServer, l
 	// Initialize session manager for keep-alive pings
 	sm := newSessionManager(logger)
 
-	// Wrap the streamableServer with keep-alive logic
+		// Wrap the streamableServer with keep-alive logic
 	keepAliveHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Set headers for SSE if it's a GET request
+		if r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.Header().Set("Cache-Control", "no-cache")
+			w.Header().Set("Connection", "keep-alive")
+			// Send an initial keep-alive to establish the connection
+			if _, err := w.Write([]byte(": keepalive\n\n")); err != nil {
+				logger.WithError(err).Warn("Failed to write initial SSE keep-alive.")
+				return // Stop processing if initial write fails
+			}
+			if flusher, ok := w.(http.Flusher); ok {
+				flusher.Flush()
+			}
+		}
+
 		// Extract session ID from header for existing sessions
 		sessionId := r.Header.Get("mcp-session-id")
 		if sessionId == "" {
