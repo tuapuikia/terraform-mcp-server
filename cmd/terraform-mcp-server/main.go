@@ -5,6 +5,8 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	stdlog "log"
 	"net/http"
@@ -57,7 +59,11 @@ func (sm *sessionManager) startKeepAlive(sessionId string, w http.ResponseWriter
 					if r.Method == http.MethodGet {
 						// SSE keep-alive
 				sm.logger.Infof("[Keep-Alive] Sending SSE ping for session: %s", sessionId)
-				_, err := w.Write([]byte(": keepalive\n\n"))
+                // Generate a unique ID for the SSE ping event
+                id := fmt.Sprintf("_GET_stream_%d_%s", time.Now().UnixNano()/int64(time.Millisecond), randomString(10))
+                pingMessage := fmt.Sprintf("event: message\nid: %s\ndata: {\"jsonrpc\":\"2.0\",\"method\":\"ping\"}\n\n", id)
+                sm.logger.Infof("[Keep-Alive] Sending SSE JSON-RPC ping for session: %s, ID: %s", sessionId, id)
+                _, err := w.Write([]byte(pingMessage))
 				if err != nil {
 							sm.logger.WithError(err).Warnf("[Keep-Alive] Failed to write SSE keep-alive for session %s, stopping.", sessionId)
 							return
@@ -166,6 +172,12 @@ var (
 	}
 )
 
+func randomString(length int) string {
+	b := make([]byte, length)
+	rand.Read(b)
+	return base64.URLEncoding.EncodeToString(b)[:length]
+}
+
 func runHTTPServer(logger *log.Logger, host string, port string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -185,6 +197,7 @@ func streamableHTTPServerInit(ctx context.Context, hcServer *server.MCPServer, l
 	opts := []server.StreamableHTTPOption{
 		server.WithEndpointPath("/mcp"), // Default MCP endpoint path
 		server.WithLogger(logger),
+		server.WithHeartbeatInterval(30*time.Second), // Add heartbeat interval
 	}
 
 	// Only add the WithStateLess option if stateless mode is enabled
@@ -236,37 +249,25 @@ func streamableHTTPServerInit(ctx context.Context, hcServer *server.MCPServer, l
 			if flusher, ok := w.(http.Flusher); ok {
 				flusher.Flush()
 			}
+		} else if r.Method == http.MethodPost {
+			// Set headers for POST requests to ensure keep-alive
+			w.Header().Set("Connection", "keep-alive")
+			w.Header().Set("Cache-Control", "no-cache")
 		}
 
 		// Extract session ID from header for existing sessions
 		sessionId := r.Header.Get("mcp-session-id")
 		if sessionId == "" {
-			// For new sessions (POST requests), generate a session ID
-			// This is a simplification; a proper session ID generation should happen
-			// within the mcp-go/server library or be passed from the client.
-			// For now, we'll use a placeholder or rely on the client to provide it.
-			// If the mcp-go/server library handles session ID generation, we'd need to
-			// hook into that. For this example, we'll assume it's available or generated.
-			// For simplicity, let's assume the client always provides a session ID for now,
-			// or that the mcp-go/server sets it in the response for new sessions.
-			// If not, this keep-alive won't work for initial POST requests.
-			// For SSE (GET), the client is expected to provide it.
-			if r.Method == http.MethodPost {
-				// This is a placeholder. In a real scenario, the mcp-go/server
-				// would provide the session ID after initialization.
-				// For now, we'll use a dummy ID or skip keep-alive for initial POST.
-				// Let's assume for now that the client will provide a session ID
-				// or that the mcp-go/server will set it in the response.
-				// If the session ID is not available, we cannot start keep-alive.
-				logger.Debug("No mcp-session-id found in POST request, skipping keep-alive for initial request.")
-			}
+			// If no session ID is provided, generate one.
+			// This is crucial for initial POST requests to enable keep-alive.
+			sessionId = randomString(32) // Generate a unique session ID
+			w.Header().Set("mcp-session-id", sessionId)
+			logger.Infof("Generated new session ID: %s for %s request", sessionId, r.Method)
 		}
 
-		if sessionId != "" {
-			// Start keep-alive for new sessions or existing SSE connections
-			if _, exists := sm.sessions[sessionId]; !exists {
-				sm.startKeepAlive(sessionId, w, r)
-			}
+		// Start keep-alive for new sessions or existing SSE connections
+		if _, exists := sm.sessions[sessionId]; !exists {
+			sm.startKeepAlive(sessionId, w, r)
 		}
 
 		// Call the original handler
